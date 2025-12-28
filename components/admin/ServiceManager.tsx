@@ -4,31 +4,52 @@ import { supabase } from '@/lib/supabase';
 import { Staff, Service } from '@/types';
 import { 
   UserPlus, Scissors, Trash2, Plus, 
-  Clock, ShieldCheck, Percent, ReceiptJapaneseYen,
-  Info, ShoppingBag, Barcode, Package
+  Clock, Info, ShoppingBag, Barcode, Package, Percent
 } from 'lucide-react';
 
-export const ServiceManager = () => {
+// Propsの型定義を追加
+interface ServiceManagerProps {
+  services: Service[];
+  onRefresh: () => Promise<void>;
+}
+
+export const ServiceManager = ({ services: initialServices, onRefresh }: ServiceManagerProps) => {
   const [activeTab, setActiveTab] = useState<'staff' | 'services' | 'products'>('staff');
   const [staff, setStaff] = useState<Staff[]>([]);
-  const [services, setServices] = useState<Service[]>([]);
+  const [services, setServices] = useState<Service[]>(initialServices);
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // 初回読み込みとタブ切り替え時のデータ取得
   useEffect(() => {
     fetchData();
   }, [activeTab]);
 
+  // Propsのservicesが更新されたら反映
+  useEffect(() => {
+    setServices(initialServices);
+  }, [initialServices]);
+
   const fetchData = async () => {
     setLoading(true);
-    const { data: stf } = await supabase.from('staff').select('*').order('created_at', { ascending: true });
-    const { data: svc } = await supabase.from('services').select('*').order('price', { ascending: true });
-    const { data: prd } = await supabase.from('products').select('*').order('name', { ascending: true });
-    
-    setStaff(stf || []);
-    setServices(svc || []);
-    setProducts(prd || []);
-    setLoading(false);
+    try {
+      const { data: stf } = await supabase.from('staff').select('*').order('created_at', { ascending: true });
+      const { data: svc } = await supabase.from('services').select('*').order('price', { ascending: true });
+      const { data: prd } = await supabase.from('products').select('*').order('name', { ascending: true });
+      
+      setStaff(stf || []);
+      setServices(svc || initialServices);
+      setProducts(prd || []);
+    } catch (error) {
+      console.error("Fetch error:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleActionComplete = async () => {
+    await fetchData();
+    await onRefresh(); // 親コンポーネント(page.tsx)のデータも更新
   };
 
   const addStaff = async () => {
@@ -36,7 +57,7 @@ export const ServiceManager = () => {
     const role = prompt("役職 (例: 店長, スタイリスト)", "Stylist");
     if (!name) return;
     const { error } = await supabase.from('staff').insert([{ name, role }]);
-    if (!error) fetchData();
+    if (!error) handleActionComplete();
   };
 
   const addService = async () => {
@@ -55,7 +76,7 @@ export const ServiceManager = () => {
       tax_rate: 0.10,
       duration_minutes: parseInt(duration || "60")
     }]);
-    if (!error) fetchData();
+    if (!error) handleActionComplete();
   };
 
   const addProduct = async () => {
@@ -72,13 +93,13 @@ export const ServiceManager = () => {
       tax_rate: 0.10,
       category: 'retail'
     }]);
-    if (!error) fetchData();
+    if (!error) handleActionComplete();
   };
 
   const deleteItem = async (table: string, id: string) => {
     if (!confirm("本当に削除しますか？")) return;
     const { error } = await supabase.from(table).delete().eq('id', id);
-    if (!error) fetchData();
+    if (!error) handleActionComplete();
   };
 
   if (loading) return (
@@ -91,7 +112,7 @@ export const ServiceManager = () => {
   return (
     <div className="max-w-6xl mx-auto pb-20 animate-in fade-in duration-700">
       
-      {/* 修正：確定申告アドバイスパネル */}
+      {/* 確定申告アドバイスパネル */}
       <div className="mb-8 bg-indigo-50 border border-indigo-100 rounded-[2rem] p-6 flex items-start gap-4 shadow-sm">
         <div className="bg-indigo-600 text-white p-2 rounded-xl shadow-lg">
           <Info size={20} />

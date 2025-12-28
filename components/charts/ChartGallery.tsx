@@ -1,19 +1,25 @@
 "use client";
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Sale, Service } from '@/types';
+import { Sale, Service, Appointment } from '@/types'; // Appointmentを追加
 // Rechartsのインポート
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, PieChart, Pie } from 'recharts';
-// Lucide-reactのアイコンを整理（CreditCardを追加）
-import { TrendingUp, Users, DollarSign, ShoppingBag, CreditCard, Calendar } from 'lucide-react';
+// Lucide-reactのアイコン
+import { TrendingUp, Users, DollarSign, ShoppingBag, CreditCard } from 'lucide-react';
 
-export const ChartGallery = () => {
+// Propsの型定義を追加
+interface ChartGalleryProps {
+  appointments: Appointment[];
+}
+
+export const ChartGallery = ({ appointments }: ChartGalleryProps) => {
   const [sales, setSales] = useState<Sale[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
+      // 売上データとサービスデータを取得
       const { data: salesData } = await supabase.from('sales').select('*');
       const { data: servicesData } = await supabase.from('services').select('*');
       setSales(salesData || []);
@@ -23,15 +29,15 @@ export const ChartGallery = () => {
     fetchData();
   }, []);
 
-  // グラフ用ダミー/集計データ
+  // グラフ用集計データ
   const menuStats = services.map((svc, index) => ({
     name: svc.name,
     value: svc.price
   }));
 
   const methodStats = [
-    { name: 'Cash', value: sales.filter(s => s.payment_method === 'cash').length || 1 },
-    { name: 'Card', value: sales.filter(s => s.payment_method === 'card').length || 1 },
+    { name: 'Cash', value: sales.filter(s => s.payment_method === 'cash').length || 0 },
+    { name: 'Card', value: sales.filter(s => s.payment_method === 'card').length || 0 },
   ];
 
   const COLORS = ['#6366f1', '#f43f5e', '#10b981', '#f59e0b'];
@@ -59,9 +65,10 @@ export const ChartGallery = () => {
         <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm">
           <div className="flex items-center gap-4 mb-4">
             <div className="p-3 bg-rose-50 text-rose-600 rounded-2xl"><Users size={20}/></div>
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Sales</span>
+            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Appointments</span>
           </div>
-          <div className="text-4xl font-black italic text-slate-900">{sales.length}</div>
+          {/* Propsで受け取った予約数を表示 */}
+          <div className="text-4xl font-black italic text-slate-900">{appointments.length}</div>
         </div>
 
         <div className="bg-slate-900 p-8 rounded-[2.5rem] shadow-xl text-white">

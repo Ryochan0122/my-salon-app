@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect } from 'react';
-import { X, User, Scissors, Clock, MessageSquare, History } from 'lucide-react';
+import { X, User, Clock, MessageSquare, History } from 'lucide-react';
 import { Staff, Service, Appointment, CustomerChart } from '@/types';
 import { supabase } from '@/lib/supabase';
 
@@ -9,7 +9,7 @@ interface Props {
   services: Service[];
   initialData: Appointment | null;
   onClose: () => void;
-  onConfirm: (data: any) => void;
+  onConfirm: (data: any) => void | Promise<void>; // Promiseも許容するように修正
 }
 
 export const AddAppointmentModal = ({ staff, services, initialData, onClose, onConfirm }: Props) => {
@@ -20,11 +20,9 @@ export const AddAppointmentModal = ({ staff, services, initialData, onClose, onC
     start_time: initialData ? new Date(initialData.start_time).toISOString().slice(0, 16) : new Date().toISOString().slice(0, 16)
   });
 
-  // 顧客の過去メモ表示用
   const [customerHistory, setCustomerHistory] = useState<CustomerChart | null>(null);
   const [nameSuggestions, setNameSuggestions] = useState<string[]>([]);
 
-  // 名前が入力されるたびにサジェストと履歴を検索
   useEffect(() => {
     if (formData.customer_name.length >= 1) {
       searchCustomerData(formData.customer_name);
@@ -35,30 +33,34 @@ export const AddAppointmentModal = ({ staff, services, initialData, onClose, onC
   }, [formData.customer_name]);
 
   const searchCustomerData = async (name: string) => {
-    // 1. 過去のカルテから最新のメモを取得
-    const { data: chartData } = await supabase
-      .from('customer_charts')
-      .select('*')
-      .eq('customer_name', name)
-      .order('created_at', { ascending: false })
-      .limit(1);
+    try {
+      // 1. 過去のカルテから最新のメモを取得
+      const { data: chartData } = await supabase
+        .from('customer_charts')
+        .select('*')
+        .eq('customer_name', name)
+        .order('created_at', { ascending: false })
+        .limit(1);
 
-    if (chartData && chartData.length > 0) {
-      setCustomerHistory(chartData[0]);
-    } else {
-      setCustomerHistory(null);
-    }
+      if (chartData && chartData.length > 0) {
+        setCustomerHistory(chartData[0]);
+      } else {
+        setCustomerHistory(null);
+      }
 
-    // 2. 名前のサジェスト用（重複を除外して取得）
-    const { data: appData } = await supabase
-      .from('appointments')
-      .select('customer_name')
-      .ilike('customer_name', `%${name}%`)
-      .limit(5);
-    
-    if (appData) {
-      const names = Array.from(new Set(appData.map(a => a.customer_name)));
-      setNameSuggestions(names);
+      // 2. 名前のサジェスト用
+      const { data: appData } = await supabase
+        .from('appointments')
+        .select('customer_name')
+        .ilike('customer_name', `%${name}%`)
+        .limit(5);
+      
+      if (appData) {
+        const names = Array.from(new Set(appData.map(a => a.customer_name)));
+        setNameSuggestions(names);
+      }
+    } catch (err) {
+      console.error("Search error:", err);
     }
   };
 
@@ -67,7 +69,7 @@ export const AddAppointmentModal = ({ staff, services, initialData, onClose, onC
       <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={onClose} />
       
       <div className="relative bg-white w-full max-w-2xl rounded-[3rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
-        <div className="flex">
+        <div className="flex flex-col md:flex-row">
           {/* 左側：入力フォーム */}
           <div className="flex-1 p-10">
             <div className="flex justify-between items-center mb-8">
@@ -78,7 +80,6 @@ export const AddAppointmentModal = ({ staff, services, initialData, onClose, onC
             </div>
 
             <div className="space-y-6">
-              {/* 名前入力 & サジェスト */}
               <div className="relative">
                 <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1 mb-2 block">Customer Name</label>
                 <div className="relative">
@@ -91,7 +92,6 @@ export const AddAppointmentModal = ({ staff, services, initialData, onClose, onC
                     placeholder="お客様名"
                   />
                 </div>
-                {/* サジェストリスト */}
                 {nameSuggestions.length > 0 && formData.customer_name !== nameSuggestions[0] && (
                   <div className="absolute z-10 w-full mt-2 bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden">
                     {nameSuggestions.map(name => (
@@ -153,7 +153,7 @@ export const AddAppointmentModal = ({ staff, services, initialData, onClose, onC
           </div>
 
           {/* 右側：顧客履歴プレビュー */}
-          <div className="w-64 bg-slate-50 p-10 border-l border-slate-100 hidden md:block">
+          <div className="w-full md:w-64 bg-slate-50 p-10 border-t md:border-t-0 md:border-l border-slate-100">
             <div className="flex items-center gap-2 mb-6 text-slate-400">
               <History size={18} />
               <span className="text-[10px] font-black uppercase tracking-widest">Customer History</span>
@@ -182,9 +182,9 @@ export const AddAppointmentModal = ({ staff, services, initialData, onClose, onC
                 </div>
               </div>
             ) : (
-              <div className="h-full flex flex-col items-center justify-center text-center opacity-30">
+              <div className="h-full flex flex-col items-center justify-center text-center opacity-30 py-10 md:py-0">
                 <MessageSquare size={48} className="mb-4 text-slate-300" />
-                <p className="text-[10px] font-black text-slate-400 uppercase leading-tight">No past records for this name</p>
+                <p className="text-[10px] font-black text-slate-400 uppercase leading-tight">No past records</p>
               </div>
             )}
           </div>

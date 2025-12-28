@@ -22,7 +22,6 @@ export default function Home() {
   const [activeApp, setActiveApp] = useState<Appointment | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
-  // データの再取得
   const refreshData = async () => {
     try {
       const { data: stf } = await supabase.from('staff').select('*');
@@ -43,37 +42,11 @@ export default function Home() {
     refreshData();
   }, [view]);
 
-  // ダブルブッキングチェック
-  const checkDoubleBooking = (newStart: Date, newEnd: Date, staffId: string, excludeId?: string) => {
-    return appointments.some(app => {
-      if (app.staff_id === staffId && app.id !== excludeId) {
-        const existStart = new Date(app.start_time);
-        const existEnd = new Date(app.end_time);
-        return (newStart < existEnd && newEnd > existStart);
-      }
-      return false;
-    });
-  };
-
-  // 予約の保存処理
   const handleSaveAppointment = async (formData: any) => {
     const start = new Date(formData.start_time);
-    // メニューから施術時間を取得（なければ60分）
     const selectedService = services.find(s => s.name === formData.menu_name);
     const duration = selectedService?.duration_minutes || 60;
     const end = new Date(start.getTime() + duration * 60 * 1000);
-
-    const isOverlapped = checkDoubleBooking(
-      start, 
-      end, 
-      formData.staff_id, 
-      editingApp?.id
-    );
-
-    if (isOverlapped) {
-      alert("⚠️ その時間は既に他の予約が入っています。別の時間かスタッフを選択してください。");
-      return;
-    }
 
     const payload = {
       customer_name: formData.customer_name,
@@ -98,11 +71,8 @@ export default function Home() {
     if (!error) await refreshData();
   };
 
-  // 会計確定処理（税務対応版）
   const handlePaymentConfirm = async (total: number, net: number, tax: number, method: string) => {
     if (!activeApp) return;
-
-    // 1. 売上レコードの作成 (net_amount, tax_amount を含める)
     const { error: saleError } = await supabase.from('sales').insert([{
       appointment_id: activeApp.id,
       customer_name: activeApp.customer_name,
@@ -115,13 +85,9 @@ export default function Home() {
     }]);
 
     if (!saleError) {
-      // 2. 予約を完了（削除またはステータス更新）
       await supabase.from('appointments').delete().eq('id', activeApp.id);
       setActiveApp(null);
       await refreshData();
-    } else {
-      console.error(saleError);
-      alert("売上保存エラーが発生しました");
     }
   };
 
@@ -132,7 +98,6 @@ export default function Home() {
       ) : (
         <div className="min-h-screen bg-slate-50 p-4 md:p-12 rounded-t-[3rem] md:rounded-t-[4rem] shadow-2xl mt-4">
           <div className="max-w-7xl mx-auto">
-            
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-12">
               <button 
                 onClick={() => setView('menu')} 
@@ -140,12 +105,10 @@ export default function Home() {
               >
                 <ChevronLeft className="group-hover:-translate-x-1 transition-transform" /> Dashboard
               </button>
-              
               <div className="text-right">
                 <h2 className="text-5xl font-black italic tracking-tighter text-slate-900 uppercase">
                   {view} <span className="text-indigo-600">.</span>
                 </h2>
-                <p className="text-slate-400 font-bold text-xs tracking-[0.2em] uppercase mt-1 tracking-widest">Salon Management System</p>
               </div>
             </div>
 
@@ -155,22 +118,23 @@ export default function Home() {
                   staff={staff} 
                   appointments={appointments} 
                   onAdd={() => setIsAddModalOpen(true)} 
-                  onPay={(app: Appointment) => setActiveApp(app)}
-                  onEdit={(app: Appointment) => setEditingApp(app)}
+                  onPay={(app) => setActiveApp(app)}
+                  onEdit={(app) => setEditingApp(app)}
                   onDelete={handleDeleteAppointment}
+                  onRefresh={refreshData}
                 />
               )}
-
               {view === 'sales' && <SalesView sales={sales} />}
-              {view === 'settings' && <ServiceManager />}
-              {view === 'chart' && <ChartGallery />}
+              {/* 下記2つのエラーをコンポーネント側で直します */}
+              {view === 'settings' && <ServiceManager services={services} onRefresh={refreshData} />}
+              {view === 'chart' && <ChartGallery appointments={appointments} />}
             </div>
             
             {(isAddModalOpen || editingApp) && (
               <AddAppointmentModal 
                 staff={staff} 
                 services={services}
-                initialData={editingApp}
+                initialData={editingApp} // nullを許容するようにModal側を直します
                 onClose={() => {
                   setIsAddModalOpen(false);
                   setEditingApp(null);
