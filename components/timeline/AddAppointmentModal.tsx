@@ -1,7 +1,7 @@
 "use client";
-import React, { useState, useEffect } from 'react';
-import { X, User, Clock, MessageSquare, History } from 'lucide-react';
-import { Staff, Service, Appointment, CustomerChart } from '@/types';
+import React, { useState, useEffect, useMemo } from 'react';
+import { X, User, Clock, MessageSquare, History, Phone, MapPin, Calendar, Check } from 'lucide-react';
+import { Staff, Service, Appointment } from '@/types';
 import { supabase } from '@/lib/supabase';
 
 interface Props {
@@ -9,185 +9,282 @@ interface Props {
   services: Service[];
   initialData: Appointment | null;
   onClose: () => void;
-  onConfirm: (data: any) => void | Promise<void>; // Promiseも許容するように修正
+  onConfirm: (data: any) => void | Promise<void>;
 }
 
 export const AddAppointmentModal = ({ staff, services, initialData, onClose, onConfirm }: Props) => {
+  const initialDate = initialData ? new Date(initialData.start_time) : new Date();
+  
   const [formData, setFormData] = useState({
+    customer_id: '', 
     customer_name: initialData?.customer_name || '',
+    customer_tel: '',
+    customer_gender: 'female',
+    customer_birth_date: '',
+    customer_address: '',
     staff_id: initialData?.staff_id || staff[0]?.id || '',
     menu_name: initialData?.menu_name || services[0]?.name || '',
-    start_time: initialData ? new Date(initialData.start_time).toISOString().slice(0, 16) : new Date().toISOString().slice(0, 16)
+    date: initialDate.toISOString().split('T')[0],
+    time: initialDate.toTimeString().slice(0, 5)
   });
 
-  const [customerHistory, setCustomerHistory] = useState<CustomerChart | null>(null);
-  const [nameSuggestions, setNameSuggestions] = useState<string[]>([]);
+  const [customerSuggestions, setCustomerSuggestions] = useState<any[]>([]);
+  const [lastVisit, setLastVisit] = useState<any>(null);
+
+  const timeOptions = useMemo(() => {
+    const options = [];
+    for (let h = 9; h <= 21; h++) {
+      for (let m = 0; m < 60; m += 15) {
+        options.push(`${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`);
+      }
+    }
+    return options;
+  }, []);
 
   useEffect(() => {
-    if (formData.customer_name.length >= 1) {
-      searchCustomerData(formData.customer_name);
+    if (formData.customer_name.length >= 1 && !formData.customer_id) {
+      searchCustomers(formData.customer_name);
     } else {
-      setCustomerHistory(null);
-      setNameSuggestions([]);
+      setCustomerSuggestions([]);
     }
-  }, [formData.customer_name]);
+  }, [formData.customer_name, formData.customer_id]);
 
-  const searchCustomerData = async (name: string) => {
-    try {
-      // 1. 過去のカルテから最新のメモを取得
-      const { data: chartData } = await supabase
-        .from('customer_charts')
-        .select('*')
-        .eq('customer_name', name)
-        .order('created_at', { ascending: false })
-        .limit(1);
+  const searchCustomers = async (name: string) => {
+    const { data } = await supabase
+      .from('customers')
+      .select('*')
+      .ilike('name', `%${name}%`)
+      .limit(5);
+    setCustomerSuggestions(data || []);
+  };
 
-      if (chartData && chartData.length > 0) {
-        setCustomerHistory(chartData[0]);
-      } else {
-        setCustomerHistory(null);
-      }
+  const selectCustomer = async (customer: any) => {
+    setFormData(prev => ({
+      ...prev,
+      customer_id: customer.id,
+      customer_name: customer.name,
+      customer_tel: customer.tel || '',
+    }));
+    setCustomerSuggestions([]);
 
-      // 2. 名前のサジェスト用
-      const { data: appData } = await supabase
-        .from('appointments')
-        .select('customer_name')
-        .ilike('customer_name', `%${name}%`)
-        .limit(5);
-      
-      if (appData) {
-        const names = Array.from(new Set(appData.map(a => a.customer_name)));
-        setNameSuggestions(names);
-      }
-    } catch (err) {
-      console.error("Search error:", err);
-    }
+    const { data: lastSale } = await supabase
+      .from('sales')
+      .select('*')
+      .eq('customer_id', customer.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+    
+    setLastVisit(lastSale);
+  };
+
+  const handleConfirm = () => {
+    const combinedStartTime = `${formData.date}T${formData.time}:00`;
+    onConfirm({ ...formData, start_time: combinedStartTime });
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={onClose} />
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
+      {/* 背景オーバーレイ */}
+      <div className="absolute inset-0 bg-slate-900/70 backdrop-blur-md" onClick={onClose} />
       
-      <div className="relative bg-white w-full max-w-2xl rounded-[3rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
-        <div className="flex flex-col md:flex-row">
-          {/* 左側：入力フォーム */}
-          <div className="flex-1 p-10">
-            <div className="flex justify-between items-center mb-8">
-              <h3 className="text-3xl font-black italic text-slate-900 tracking-tighter">
-                {initialData ? 'EDIT' : 'NEW'} BOOKING
-              </h3>
-              <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full transition-colors"><X /></button>
-            </div>
+      <div className="relative bg-white w-full max-w-5xl rounded-[3rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300 h-[90vh] flex flex-col md:flex-row">
+        
+        {/* ❌ 閉じるボタン (右上に固定) */}
+        <button 
+          onClick={onClose}
+          className="absolute right-6 top-6 z-50 p-3 bg-slate-100 hover:bg-red-50 hover:text-red-500 rounded-full transition-all group"
+        >
+          <X size={24} className="group-hover:rotate-90 transition-transform duration-300" />
+        </button>
 
-            <div className="space-y-6">
+        {/* 左側：メインフォーム */}
+        <div className="flex-1 p-8 md:p-14 overflow-y-auto custom-scrollbar">
+          <header className="mb-10">
+            <h3 className="text-4xl font-black italic text-slate-900 tracking-tighter uppercase leading-none">
+              {initialData ? 'Edit' : 'New'} <span className="text-indigo-600">Booking .</span>
+            </h3>
+          </header>
+
+          <div className="space-y-8">
+            {/* 顧客入力 */}
+            <div className="relative">
+              <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1 mb-2 block">Customer Name</label>
               <div className="relative">
-                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1 mb-2 block">Customer Name</label>
-                <div className="relative">
-                  <User className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                  <input 
-                    type="text"
-                    value={formData.customer_name}
-                    onChange={(e) => setFormData({...formData, customer_name: e.target.value})}
-                    className="w-full pl-12 pr-4 py-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold"
-                    placeholder="お客様名"
-                  />
-                </div>
-                {nameSuggestions.length > 0 && formData.customer_name !== nameSuggestions[0] && (
-                  <div className="absolute z-10 w-full mt-2 bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden">
-                    {nameSuggestions.map(name => (
-                      <button 
-                        key={name}
-                        onClick={() => setFormData({...formData, customer_name: name})}
-                        className="w-full px-6 py-3 text-left hover:bg-slate-50 font-bold text-slate-600 transition-colors"
-                      >
-                        {name}
-                      </button>
-                    ))}
-                  </div>
-                )}
+                <User className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+                <input 
+                  type="text"
+                  value={formData.customer_name}
+                  onChange={(e) => setFormData({...formData, customer_name: e.target.value, customer_id: ''})}
+                  className="w-full pl-14 pr-6 py-5 bg-slate-50 border-none rounded-[1.5rem] focus:ring-2 focus:ring-indigo-500 font-bold text-xl placeholder:text-slate-300 transition-all"
+                  placeholder="お名前を入力..."
+                />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1 mb-2 block">Stylist</label>
-                  <select 
-                    value={formData.staff_id}
-                    onChange={(e) => setFormData({...formData, staff_id: e.target.value})}
-                    className="w-full px-4 py-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold appearance-none"
-                  >
-                    {staff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                  </select>
+              {customerSuggestions.length > 0 && (
+                <div className="absolute z-20 w-full mt-3 bg-white rounded-[2rem] shadow-2xl border border-slate-100 overflow-hidden ring-1 ring-black/5 animate-in slide-in-from-top-2">
+                  {customerSuggestions.map(c => (
+                    <button 
+                      key={c.id} 
+                      onClick={() => selectCustomer(c)}
+                      className="w-full px-8 py-5 text-left hover:bg-indigo-50 flex items-center justify-between border-b border-slate-50 last:border-none transition-all"
+                    >
+                      <div>
+                        <div className="font-black text-slate-900 text-lg">{c.name}</div>
+                        <div className="text-xs text-slate-400 font-bold tracking-wider">{c.tel || 'No Phone Number'}</div>
+                      </div>
+                      <div className="px-4 py-2 bg-indigo-100 text-indigo-600 rounded-full font-black text-[10px] uppercase flex items-center gap-1">
+                        <Check size={12} /> Select Existing
+                      </div>
+                    </button>
+                  ))}
                 </div>
-                <div>
-                  <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1 mb-2 block">Menu</label>
-                  <select 
-                    value={formData.menu_name}
-                    onChange={(e) => setFormData({...formData, menu_name: e.target.value})}
-                    className="w-full px-4 py-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold appearance-none"
-                  >
-                    {services.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1 mb-2 block">Start Time</label>
-                <div className="relative">
-                  <Clock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                  <input 
-                    type="datetime-local"
-                    value={formData.start_time}
-                    onChange={(e) => setFormData({...formData, start_time: e.target.value})}
-                    className="w-full pl-12 pr-4 py-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold"
-                  />
-                </div>
-              </div>
+              )}
             </div>
 
-            <button 
-              onClick={() => onConfirm(formData)}
-              className="w-full mt-10 py-5 bg-slate-900 text-white rounded-3xl font-black text-lg hover:bg-indigo-600 transition-all shadow-xl shadow-slate-200"
-            >
-              {initialData ? '変更を保存する' : '予約を確定する'}
-            </button>
-          </div>
-
-          {/* 右側：顧客履歴プレビュー */}
-          <div className="w-full md:w-64 bg-slate-50 p-10 border-t md:border-t-0 md:border-l border-slate-100">
-            <div className="flex items-center gap-2 mb-6 text-slate-400">
-              <History size={18} />
-              <span className="text-[10px] font-black uppercase tracking-widest">Customer History</span>
-            </div>
-
-            {customerHistory ? (
-              <div className="space-y-6">
-                <div>
-                  <label className="text-[10px] font-black text-slate-300 uppercase block mb-2">Last Visit Memo</label>
-                  <div className="bg-white p-4 rounded-2xl text-xs font-bold text-slate-600 leading-relaxed shadow-sm">
-                    {customerHistory.memo || "メモはありません"}
-                  </div>
+            {/* 新規詳細 (自動展開) */}
+            {!formData.customer_id && formData.customer_name && (
+              <div className="p-8 bg-indigo-50/40 rounded-[2.5rem] space-y-5 animate-in fade-in slide-in-from-top-2 border border-indigo-100/50">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></div>
+                  <p className="text-[10px] font-black text-indigo-500 uppercase tracking-[0.2em]">New Customer Profile</p>
                 </div>
-                {customerHistory.image_url && (
-                  <div>
-                    <label className="text-[10px] font-black text-slate-300 uppercase block mb-2">Reference Style</label>
-                    <img 
-                      src={customerHistory.image_url} 
-                      className="w-full aspect-square object-cover rounded-2xl shadow-sm"
-                      alt="Last style" 
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                  <div className="relative">
+                    <Phone className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                    <input 
+                      type="tel" placeholder="電話番号" value={formData.customer_tel}
+                      onChange={(e) => setFormData({...formData, customer_tel: e.target.value})}
+                      className="w-full pl-11 pr-4 py-4 bg-white border-none rounded-2xl text-sm font-bold shadow-sm"
                     />
                   </div>
-                )}
-                <div className="text-[10px] font-black text-indigo-400 italic">
-                  Last visit: {new Date(customerHistory.created_at).toLocaleDateString()}
+                  <div className="relative">
+                    <User className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                    <select 
+                      value={formData.customer_gender}
+                      onChange={(e) => setFormData({...formData, customer_gender: e.target.value})}
+                      className="w-full pl-11 pr-4 py-4 bg-white border-none rounded-2xl text-sm font-bold shadow-sm appearance-none cursor-pointer"
+                    >
+                      <option value="female">女性</option>
+                      <option value="male">男性</option>
+                      <option value="other">その他</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                   <div className="relative">
+                    <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                    <input 
+                      type="date" value={formData.customer_birth_date}
+                      onChange={(e) => setFormData({...formData, customer_birth_date: e.target.value})}
+                      className="w-full pl-11 pr-4 py-4 bg-white border-none rounded-2xl text-sm font-bold shadow-sm"
+                    />
+                  </div>
+                  <div className="relative">
+                    <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                    <input 
+                      placeholder="住所" value={formData.customer_address}
+                      onChange={(e) => setFormData({...formData, customer_address: e.target.value})}
+                      className="w-full pl-11 pr-4 py-4 bg-white border-none rounded-2xl text-sm font-bold shadow-sm"
+                    />
+                  </div>
                 </div>
               </div>
-            ) : (
-              <div className="h-full flex flex-col items-center justify-center text-center opacity-30 py-10 md:py-0">
-                <MessageSquare size={48} className="mb-4 text-slate-300" />
-                <p className="text-[10px] font-black text-slate-400 uppercase leading-tight">No past records</p>
-              </div>
             )}
+
+            <div className="grid grid-cols-2 gap-5">
+              <div>
+                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1 mb-2 block">Stylist</label>
+                <select 
+                  value={formData.staff_id}
+                  onChange={(e) => setFormData({...formData, staff_id: e.target.value})}
+                  className="w-full px-5 py-4 bg-slate-50 border-none rounded-2xl font-bold appearance-none cursor-pointer hover:bg-slate-100 transition-colors"
+                >
+                  {staff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1 mb-2 block">Menu</label>
+                <select 
+                  value={formData.menu_name}
+                  onChange={(e) => setFormData({...formData, menu_name: e.target.value})}
+                  className="w-full px-5 py-4 bg-slate-50 border-none rounded-2xl font-bold appearance-none cursor-pointer hover:bg-slate-100 transition-colors"
+                >
+                  {services.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
+                </select>
+              </div>
+            </div>
+
+            {/* 日時選択 */}
+            <div className="grid grid-cols-2 gap-5">
+              <div>
+                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1 mb-2 block">Date</label>
+                <div className="relative">
+                  <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                  <input 
+                    type="date"
+                    value={formData.date}
+                    onChange={(e) => setFormData({...formData, date: e.target.value})}
+                    className="w-full pl-12 pr-4 py-4 bg-slate-50 border-none rounded-2xl font-bold cursor-pointer"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1 mb-2 block">Time Slot</label>
+                <div className="relative">
+                  <Clock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                  <select 
+                    value={formData.time}
+                    onChange={(e) => setFormData({...formData, time: e.target.value})}
+                    className="w-full pl-12 pr-4 py-4 bg-slate-50 border-none rounded-2xl font-bold appearance-none cursor-pointer"
+                  >
+                    {timeOptions.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
+              </div>
+            </div>
           </div>
+
+          <button 
+            onClick={handleConfirm}
+            className="w-full mt-12 py-7 bg-slate-900 text-white rounded-[2.5rem] font-black text-2xl hover:bg-indigo-600 transition-all shadow-2xl shadow-indigo-100 active:scale-[0.97]"
+          >
+            {initialData ? 'Update Schedule' : 'Confirm Booking'}
+          </button>
+        </div>
+
+        {/* 右側：履歴 */}
+        <div className="w-full md:w-96 bg-slate-50 p-10 flex flex-col border-l border-slate-100">
+          <div className="flex items-center gap-2 mb-10">
+            <div className="p-2 bg-indigo-500 rounded-xl text-white">
+              <History size={20} />
+            </div>
+            <span className="text-sm font-black uppercase tracking-[0.2em] text-slate-900">Treatment History</span>
+          </div>
+
+          {lastVisit ? (
+            <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100 animate-in fade-in slide-in-from-right-4">
+              <div className="inline-block px-3 py-1 bg-indigo-50 text-indigo-500 text-[10px] font-black uppercase rounded-lg mb-4 italic">
+                {lastVisit.menu_name}
+              </div>
+              <p className="text-sm font-bold text-slate-600 leading-relaxed italic border-l-4 border-indigo-100 pl-4">
+                "{lastVisit.memo || "No technical notes recorded for this visit."}"
+              </p>
+              <div className="mt-8 pt-6 border-t border-slate-50 flex items-center justify-between">
+                <span className="text-[10px] text-slate-300 font-black uppercase tracking-widest">Last Visit</span>
+                <span className="text-xs font-bold text-slate-400">{new Date(lastVisit.created_at).toLocaleDateString()}</span>
+              </div>
+            </div>
+          ) : (
+            <div className="flex-1 flex flex-col items-center justify-center text-center px-6">
+              <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mb-4">
+                <MessageSquare size={32} className="text-slate-300" />
+              </div>
+              <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest leading-loose">
+                First time customer or<br/>no records available.
+              </p>
+            </div>
+          )}
         </div>
       </div>
     </div>

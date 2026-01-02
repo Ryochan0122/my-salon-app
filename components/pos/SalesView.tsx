@@ -10,7 +10,8 @@ import {
   Scissors,
   ShoppingBag,
   CreditCard,
-  Banknote
+  Banknote,
+  Users // 追加
 } from 'lucide-react';
 
 interface Props {
@@ -18,7 +19,7 @@ interface Props {
 }
 
 export const SalesView = ({ sales }: Props) => {
-  // インテリジェント集計ロジック
+  // インテリジェント集計ロジック（既存＋新ロジック追加）
   const stats = useMemo(() => {
     const total = sales.reduce((sum, s) => sum + s.total_amount, 0);
     const net = sales.reduce((sum, s) => sum + (s.net_amount || 0), 0);
@@ -29,13 +30,20 @@ export const SalesView = ({ sales }: Props) => {
       return acc;
     }, {});
 
-    return { total, net, tax, byMethod, count: sales.length };
+    // 【追加】スタッフ別集計
+    const byStaff = sales.reduce((acc: Record<string, number>, s) => {
+      const name = s.staff?.name || "Unknown";
+      acc[name] = (acc[name] || 0) + s.total_amount;
+      return acc;
+    }, {});
+
+    return { total, net, tax, byMethod, byStaff, count: sales.length };
   }, [sales]);
 
   return (
     <div className="space-y-8 animate-in fade-in duration-700">
       
-      {/* 1. クイック・スタッツ・カード */}
+      {/* 1. クイック・スタッツ・カード (維持) */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-slate-900 rounded-[2.5rem] p-8 text-white shadow-2xl relative overflow-hidden group">
           <div className="relative z-10">
@@ -63,34 +71,63 @@ export const SalesView = ({ sales }: Props) => {
         </div>
       </div>
 
-      {/* 2. メインコンテンツエリア */}
       <div className="grid grid-cols-12 gap-8">
         
-        {/* 支払い内訳 */}
-        <div className="col-span-12 lg:col-span-4 bg-white rounded-[3.5rem] p-10 border border-slate-100 shadow-xl">
-          <h4 className="text-lg font-black italic uppercase tracking-tighter mb-8 flex items-center gap-3">
-            <CreditCard className="text-indigo-600" /> Payment Methods
-          </h4>
-          <div className="space-y-6">
-            {Object.entries(stats.byMethod).map(([method, amount]: [string, number]) => (
-              <div key={method} className="flex justify-between items-center">
-                <div className="flex items-center gap-4">
-                  <div className="p-3 bg-slate-50 rounded-xl text-slate-900">
-                    {method === 'cash' ? <Banknote size={18} /> : <CreditCard size={18} />}
+        {/* 左カラム: 支払い内訳と【新規】スタッフ貢献度 */}
+        <div className="col-span-12 lg:col-span-4 space-y-8">
+          
+          {/* 【新規追加】スタッフ別貢献度 */}
+          <div className="bg-white rounded-[3.5rem] p-10 border border-slate-100 shadow-xl">
+            <h4 className="text-lg font-black italic uppercase tracking-tighter mb-8 flex items-center gap-3">
+              <Users className="text-indigo-600" /> Staff Performance
+            </h4>
+            <div className="space-y-6">
+              {Object.entries(stats.byStaff).map(([name, amount]) => {
+                const percent = stats.total > 0 ? Math.round((amount / stats.total) * 100) : 0;
+                return (
+                  <div key={name} className="space-y-2">
+                    <div className="flex justify-between items-end">
+                      <span className="text-xs font-black uppercase text-slate-900">{name}</span>
+                      <span className="text-xs font-black text-slate-400">¥{amount.toLocaleString()}</span>
+                    </div>
+                    <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+                      <div 
+                        className="h-full bg-indigo-600 rounded-full transition-all duration-1000" 
+                        style={{ width: `${percent}%` }}
+                      />
+                    </div>
                   </div>
-                  <span className="text-xs font-black uppercase text-slate-500">{method}</span>
-                </div>
-                <span className="font-black text-slate-900 text-lg">¥{amount.toLocaleString()}</span>
-              </div>
-            ))}
+                );
+              })}
+            </div>
           </div>
-          <div className="mt-10 p-6 bg-slate-50 rounded-3xl border border-dashed border-slate-200 text-center">
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Cash on Hand</p>
-            <p className="text-2xl font-black text-slate-900 italic">¥{(stats.byMethod['cash'] || 0).toLocaleString()}</p>
+
+          {/* 支払い内訳 (維持) */}
+          <div className="bg-white rounded-[3.5rem] p-10 border border-slate-100 shadow-xl">
+            <h4 className="text-lg font-black italic uppercase tracking-tighter mb-8 flex items-center gap-3">
+              <CreditCard className="text-indigo-600" /> Payment Methods
+            </h4>
+            <div className="space-y-6">
+              {Object.entries(stats.byMethod).map(([method, amount]: [string, number]) => (
+                <div key={method} className="flex justify-between items-center">
+                  <div className="flex items-center gap-4">
+                    <div className="p-3 bg-slate-50 rounded-xl text-slate-900">
+                      {method === 'cash' ? <Banknote size={18} /> : <CreditCard size={18} />}
+                    </div>
+                    <span className="text-xs font-black uppercase text-slate-500">{method}</span>
+                  </div>
+                  <span className="font-black text-slate-900 text-lg">¥{amount.toLocaleString()}</span>
+                </div>
+              ))}
+            </div>
+            <div className="mt-10 p-6 bg-slate-50 rounded-3xl border border-dashed border-slate-200 text-center">
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Cash on Hand</p>
+              <p className="text-2xl font-black text-slate-900 italic">¥{(stats.byMethod['cash'] || 0).toLocaleString()}</p>
+            </div>
           </div>
         </div>
 
-        {/* 取引履歴 */}
+        {/* 右カラム: 取引履歴 (維持・一部微調整) */}
         <div className="col-span-12 lg:col-span-8 bg-white rounded-[3.5rem] border border-slate-100 shadow-xl overflow-hidden">
           <div className="p-10 border-b border-slate-50 flex justify-between items-center">
             <h4 className="text-lg font-black italic uppercase tracking-tighter flex items-center gap-3">
@@ -126,7 +163,9 @@ export const SalesView = ({ sales }: Props) => {
                       <div className="text-xs font-black text-slate-900 group-hover:text-indigo-600 transition-colors">
                         {sale.customer_name}
                       </div>
-                      <div className="text-[10px] text-slate-400 font-bold uppercase">Staff ID: {sale.staff_id.slice(0,8)}</div>
+                      <div className="text-[10px] text-slate-400 font-bold uppercase">
+                        Staff: {sale.staff?.name || 'Unknown'}
+                      </div>
                     </td>
                     <td className="px-8 py-6">
                       <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 text-[9px] font-black text-slate-600 uppercase">

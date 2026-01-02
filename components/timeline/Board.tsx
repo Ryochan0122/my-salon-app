@@ -2,23 +2,38 @@
 import React, { useState } from 'react';
 import { Staff, Appointment } from '@/types';
 import { StaffRow } from './StaffRow';
-import { Plus, ChevronLeft, ChevronRight, Calendar as CalendarIcon, MousePointer2 } from 'lucide-react';
+import { Plus, ChevronLeft, ChevronRight, Calendar as CalendarIcon, MousePointer2, Zap, Clock } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { DailyPrepSidebar } from './DailyPrepSidebar';
 
 interface BoardProps {
   staff: Staff[];
   appointments: Appointment[];
-  onRefresh: () => void; // 予約更新後にデータを再取得するための関数
+  onRefresh: () => void;
   onAdd: () => void;
   onPay: (app: Appointment) => void;
   onEdit: (app: Appointment) => void;
   onDelete: (id: string) => void;
+  onShowChart: (name: string) => void;
 }
 
-export const Board = ({ staff, appointments, onRefresh, onAdd, onPay, onEdit, onDelete }: BoardProps) => {
+export const Board = ({ 
+  staff, 
+  appointments, 
+  onRefresh, 
+  onAdd, 
+  onPay, 
+  onEdit, 
+  onDelete, 
+  onShowChart 
+}: BoardProps) => {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [isRescheduling, setIsRescheduling] = useState(false);
+
+  // 営業時間の設定 (9:00 - 21:00)
+  const startHour = 9;
+  const hoursCount = 13; // 9時から21時まで
 
   const changeMonth = (offset: number) => {
     const nextMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + offset, 1);
@@ -44,15 +59,12 @@ export const Board = ({ staff, appointments, onRefresh, onAdd, onPay, onEdit, on
     );
   });
 
-  // 【100機能：ドラッグ＆ドロップによる予約時間変更ロジック】
-  // StaffRow側で発生したドロップイベントを受け取り、DBを更新します
   const handleMoveAppointment = async (appId: string, newStartTime: string) => {
     setIsRescheduling(true);
     try {
       const { data: currentApp } = await supabase.from('appointments').select('*').eq('id', appId).single();
       if (!currentApp) return;
 
-      // 元の所要時間（duration）を計算
       const duration = new Date(currentApp.end_time).getTime() - new Date(currentApp.start_time).getTime();
       const newStart = new Date(newStartTime);
       const newEnd = new Date(newStart.getTime() + duration);
@@ -66,7 +78,7 @@ export const Board = ({ staff, appointments, onRefresh, onAdd, onPay, onEdit, on
         .eq('id', appId);
 
       if (error) throw error;
-      onRefresh(); // app/page.tsx 等で定義したデータ取得関数を叩く
+      onRefresh();
     } catch (error) {
       console.error('Failed to reschedule:', error);
       alert('予約の移動に失敗しました。');
@@ -76,23 +88,30 @@ export const Board = ({ staff, appointments, onRefresh, onAdd, onPay, onEdit, on
   };
 
   return (
-    <div className="flex flex-col lg:flex-row gap-8 items-start relative pb-20">
+    <div className="flex flex-col xl:flex-row gap-8 items-start relative pb-20 max-w-[2000px] mx-auto transition-all animate-in fade-in duration-700 px-4">
       
-      {/* LEFT: Mini Navigator */}
-      <div className="w-full lg:w-80 flex-none bg-white rounded-[2.5rem] p-6 shadow-xl border border-slate-100 lg:sticky lg:top-8 transition-all">
-        <div className="flex justify-between items-center mb-6 px-2">
-          <h4 className="font-black italic text-slate-900 tracking-tighter text-lg">
-            {currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-          </h4>
-          <div className="flex gap-1">
-            <button onClick={() => changeMonth(-1)} className="p-2 hover:bg-slate-100 rounded-xl text-slate-400 transition-colors"><ChevronLeft size={16}/></button>
-            <button onClick={() => changeMonth(1)} className="p-2 hover:bg-slate-100 rounded-xl text-slate-400 transition-colors"><ChevronRight size={16}/></button>
-          </div>
-        </div>
+      {/* 1. LEFT: Premium Navigator */}
+      <div className="w-full xl:w-[400px] flex-none bg-white rounded-[3.5rem] p-10 shadow-[0_32px_64px_-12px_rgba(0,0,0,0.08)] border border-slate-100 xl:sticky xl:top-8 overflow-hidden group">
+        <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/5 rounded-full blur-3xl -mr-10 -mt-10" />
         
-        <div className="grid grid-cols-7 gap-1 text-center mb-4">
-          {['S','M','T','W','T','F','S'].map((day, idx) => (
-            <div key={`weekday-${day}-${idx}`} className="text-[10px] font-black text-slate-200 uppercase mb-2">{day}</div>
+        <header className="flex justify-between items-center mb-10 relative">
+          <div>
+            <h4 className="font-black italic text-slate-900 tracking-tighter text-3xl uppercase leading-none">
+              {currentMonth.toLocaleDateString('ja-JP', { month: 'long' })}
+            </h4>
+            <span className="text-[10px] font-black text-slate-400 tracking-[0.3em] uppercase mt-1 block">
+              {currentMonth.getFullYear()} Schedule
+            </span>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={() => changeMonth(-1)} className="p-3 hover:bg-slate-900 hover:text-white rounded-2xl text-slate-400 transition-all border border-slate-100 shadow-sm"><ChevronLeft size={20}/></button>
+            <button onClick={() => changeMonth(1)} className="p-3 hover:bg-slate-900 hover:text-white rounded-2xl text-slate-400 transition-all border border-slate-100 shadow-sm"><ChevronRight size={20}/></button>
+          </div>
+        </header>
+        
+        <div className="grid grid-cols-7 gap-3 text-center mb-8 relative">
+          {['SUN','MON','TUE','WED','THU','FRI','SAT'].map((day, idx) => (
+            <div key={`weekday-${day}-${idx}`} className={`text-[9px] font-black uppercase mb-4 tracking-widest ${idx === 0 ? 'text-rose-400' : 'text-slate-300'}`}>{day}</div>
           ))}
           {getDaysInMonth().map((day, i) => {
             if (!day) return <div key={`blank-${i}`} />;
@@ -105,70 +124,133 @@ export const Board = ({ staff, appointments, onRefresh, onAdd, onPay, onEdit, on
               <button 
                 key={`day-${day}`} 
                 onClick={() => setSelectedDate(dateObj)}
-                className={`aspect-square flex items-center justify-center text-sm font-bold rounded-xl transition-all relative
-                  ${isSelected ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200 scale-110 z-10' : 'hover:bg-slate-50 text-slate-600'}
-                  ${isToday && !isSelected ? 'text-indigo-600 border border-indigo-100' : ''}`}
+                className={`w-full aspect-square flex flex-col items-center justify-center text-xl font-black rounded-[1.5rem] transition-all relative group/date
+                  ${isSelected 
+                    ? 'bg-slate-900 text-white shadow-[0_20px_40px_-10px_rgba(0,0,0,0.3)] scale-110 z-10' 
+                    : 'hover:bg-indigo-50 text-slate-500'}
+                  ${isToday && !isSelected ? 'text-indigo-600 ring-2 ring-indigo-500/20 bg-indigo-50/30' : ''}`}
               >
-                {day}
-                {hasBooking && !isSelected && <span className="absolute bottom-1 w-1 h-1 bg-indigo-300 rounded-full" />}
+                <span className="relative z-10">{day}</span>
+                {hasBooking && (
+                  <span className={`absolute bottom-3 w-1.5 h-1.5 rounded-full transition-all ${isSelected ? 'bg-indigo-400' : 'bg-indigo-500'}`} />
+                )}
               </button>
             );
           })}
         </div>
 
-        <div className="mt-8 pt-6 border-t border-slate-50 space-y-4">
-          <div className="flex items-center gap-2 px-4 py-2 bg-slate-50 rounded-xl text-[10px] font-black text-slate-400 uppercase tracking-widest">
-            <MousePointer2 size={12} className="text-indigo-500" /> Drag items to move
+        <div className="space-y-4 relative">
+          <div className="flex items-center gap-3 px-6 py-4 bg-slate-50 rounded-[1.5rem] text-[10px] font-black text-slate-500 uppercase tracking-widest border border-slate-100">
+            <Zap size={14} className="text-amber-400 fill-amber-400" /> Smart Management Active
           </div>
            <button 
             onClick={onAdd}
-            className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black flex items-center justify-center gap-2 hover:bg-indigo-600 transition-all shadow-xl shadow-slate-200"
+            className="w-full py-6 bg-indigo-600 text-white rounded-[2rem] font-black text-lg flex items-center justify-center gap-3 hover:bg-slate-900 hover:translate-y-[-4px] transition-all shadow-[0_20px_40px_-10px_rgba(79,70,229,0.4)]"
           >
-            <Plus size={20} /> 新規予約
+            <Plus size={24} /> NEW BOOKING
           </button>
         </div>
       </div>
 
-      {/* RIGHT: Daily Timeline */}
-      <div className={`flex-1 w-full bg-white rounded-[3rem] shadow-xl border border-slate-100 overflow-hidden flex flex-col h-[80vh] transition-opacity ${isRescheduling ? 'opacity-50' : 'opacity-100'}`}>
-        <div className="p-8 border-b border-slate-50 flex justify-between items-center bg-white/80 backdrop-blur-md shrink-0">
-          <div className="flex items-center gap-4">
-            <div className="p-3 bg-indigo-600 text-white rounded-2xl shadow-lg shadow-indigo-100">
-              <CalendarIcon size={24} />
+      {/* 2. CENTER: Master Horizontal Timeline */}
+      <div className={`flex-1 w-full bg-white rounded-[4rem] shadow-[0_32px_64px_-12px_rgba(0,0,0,0.06)] border border-slate-100 overflow-hidden flex flex-col h-[85vh] transition-all ${isRescheduling ? 'opacity-50 grayscale' : 'opacity-100'}`}>
+        
+        {/* Timeline Header */}
+        <div className="p-10 border-b border-slate-50 flex justify-between items-center bg-white/50 backdrop-blur-xl shrink-0">
+          <div className="flex items-center gap-6">
+            <div className="w-16 h-16 bg-slate-900 text-white rounded-[1.8rem] flex items-center justify-center shadow-2xl rotate-3">
+              <Clock size={28} />
             </div>
             <div>
-              <h3 className="text-2xl font-black italic text-slate-900 leading-none">
+              <h3 className="text-3xl font-black italic text-slate-900 leading-none tracking-tighter">
                 {selectedDate.toLocaleDateString('ja-JP', { month: 'long', day: 'numeric', weekday: 'short' })}
               </h3>
-              <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-1">Daily Timeline</p>
+              <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.2em] mt-2">Horizontal Master View</p>
             </div>
           </div>
-          <div className="hidden md:block">
-            <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest border border-slate-100 px-3 py-1 rounded-full">
-              {filteredApps.length} Bookings
-            </span>
+          <div className="hidden md:flex gap-4">
+             <div className="bg-slate-50 px-6 py-4 rounded-3xl border border-slate-100 text-right min-w-[120px]">
+                <span className="text-3xl font-black text-slate-900 italic tracking-tighter leading-none block">{filteredApps.length}</span>
+                <span className="text-[9px] font-black text-indigo-500 uppercase tracking-widest mt-1">Bookings</span>
+             </div>
           </div>
         </div>
         
-        <div className="overflow-auto flex-1 divide-y divide-slate-50 custom-scrollbar relative">
-          {staff.length > 0 ? (
-            staff.map(member => (
-              <StaffRow 
-                key={member.id} 
-                member={member} 
-                appointments={filteredApps.filter(a => a.staff_id === member.id)}
-                onPay={onPay}
-                onEdit={onEdit}
-                onDelete={onDelete}
-                // 下記を追加：StaffRow側で移動が起きた際にBoardの関数を呼ぶ
-                onMoveApp={handleMoveAppointment} 
-              />
-            ))
-          ) : (
-            <div className="p-20 text-center text-slate-300 font-black italic text-xl">No Staff Assigned</div>
-          )}
+        {/* Scrollable Timeline Area */}
+        <div className="flex-1 overflow-auto custom-scrollbar relative bg-slate-50/20">
+          <div className="min-w-[1400px] h-full flex flex-col">
+            
+            {/* Time Scale (9:00 - 21:00) */}
+            <div className="flex border-b border-slate-100 bg-white/80 backdrop-blur-md sticky top-0 z-30">
+              <div className="w-48 flex-none bg-slate-50/50 border-r border-slate-100 p-4 flex items-end">
+                <span className="text-[10px] font-black text-slate-300 uppercase tracking-[0.2em]">Personnel</span>
+              </div>
+              <div className="flex-1 flex">
+                {Array.from({ length: hoursCount }).map((_, i) => (
+                  <div key={i} className="flex-1 min-w-[100px] py-6 text-center border-r border-slate-50 last:border-none group">
+                    <span className="text-xs font-black text-slate-400 group-hover:text-indigo-600 transition-colors">{(startHour + i).toString().padStart(2, '0')}:00</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Staff Slots */}
+            <div className="flex-1">
+              {staff.length > 0 ? (
+                staff.map(member => (
+                  <div key={member.id} className="flex min-h-[140px] border-b border-slate-50 group hover:bg-slate-50/30 transition-all">
+                    {/* Staff Info Column (Left Fixed) */}
+                    <div className="w-48 flex-none p-6 bg-white sticky left-0 z-20 border-r border-slate-100 flex flex-col justify-center shadow-[10px_0_20px_-10px_rgba(0,0,0,0.03)]">
+                      <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-2xl mb-3 flex items-center justify-center font-black text-lg shadow-sm border border-indigo-100">
+                        {member.name.slice(0, 1)}
+                      </div>
+                      <div className="font-black text-slate-900 text-base tracking-tighter truncate">{member.name}</div>
+                      <div className="text-[9px] font-black text-slate-300 uppercase tracking-widest mt-1">Specialist</div>
+                    </div>
+
+                    {/* Timeline Content (Right Scrollable) */}
+                    <div className="flex-1 relative">
+                      {/* Grid Guide Lines */}
+                      <div className="absolute inset-0 flex pointer-events-none">
+                        {Array.from({ length: hoursCount }).map((_, i) => (
+                          <div key={i} className="flex-1 border-r border-slate-50/50" />
+                        ))}
+                      </div>
+
+                      {/* Appointment Blocks */}
+                      <div className="relative h-full w-full p-4">
+                        <StaffRow 
+                          member={member} 
+                          appointments={filteredApps.filter(a => a.staff_id === member.id)}
+                          selectedDate={selectedDate}
+                          onPay={onPay}
+                          onEdit={onEdit}
+                          onDelete={onDelete}
+                          onMoveApp={handleMoveAppointment} 
+                          onShowChart={onShowChart}
+                          // horizontalモードのフラグを渡す（StaffRowでスタイルを切り替えるため）
+                          viewMode="horizontal" 
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="flex flex-col items-center justify-center py-40 text-slate-200">
+                  <MousePointer2 size={60} className="mb-4 opacity-5" />
+                  <p className="font-black italic text-2xl uppercase tracking-tighter opacity-20">Waiting for assignment</p>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </div>
+
+      {/* 3. RIGHT: Side Insight */}
+      <div className="w-full xl:w-96 flex-none sticky top-8">
+        <DailyPrepSidebar appointments={filteredApps} />
+      </div>
+
     </div>
   );
 };

@@ -13,9 +13,10 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+// 👈 100機能：アプリの名称を AURA に統一
 export const metadata: Metadata = {
-  title: "Salon Pro Manager",
-  description: "Next-gen Salon Management System",
+  title: "AURA | Smart Salon Intelligence",
+  description: "Next-generation Salon management & customer analysis system.",
 };
 
 export default function RootLayout({
@@ -26,9 +27,8 @@ export default function RootLayout({
   return (
     <html lang="ja">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-slate-50 text-slate-900`}
       >
-        {/* AuthGuardでアプリ全体を囲みます */}
         <AuthGuard>
           {children}
         </AuthGuard>

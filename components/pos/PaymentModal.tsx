@@ -1,24 +1,26 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Appointment, Service } from '@/types';
+import { Appointment, Service, Product } from '@/types';
 import { 
   X, Plus, Minus, ShoppingCart, 
   CreditCard, Banknote, Smartphone, Receipt,
-  Scissors, Package, Trash2
+  Scissors, Package, Trash2, FileText
 } from 'lucide-react';
 
 interface Props {
   app: Appointment;
   services: Service[];
   onClose: () => void;
-  onConfirm: (total: number, net: number, tax: number, method: string) => void;
+  // 引数に memo を追加
+  onConfirm: (total: number, net: number, tax: number, method: string, cart: any[], memo: string) => void;
 }
 
 export const PaymentModal = ({ app, services, onClose, onConfirm }: Props) => {
-  const [products, setProducts] = useState<any[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [cart, setCart] = useState<{id: string, name: string, price: number, type: 'service' | 'product', qty: number}[]>([]);
   const [paymentMethod, setPaymentMethod] = useState('cash');
+  const [memo, setMemo] = useState(''); // 👈 施術メモ用のステートを追加
 
   // 初期化：予約されていた技術メニューをカートに入れる
   useEffect(() => {
@@ -40,12 +42,11 @@ export const PaymentModal = ({ app, services, onClose, onConfirm }: Props) => {
     setProducts(data || []);
   };
 
-  // カートへの追加・削除
   const addToCart = (item: any, type: 'service' | 'product') => {
     setCart(prev => {
       const existing = prev.find(i => i.id === item.id && i.type === type);
       if (existing) {
-        return prev.map(i => i.id === item.id ? {...i, qty: i.qty + 1} : i);
+        return prev.map(i => i.id === item.id && i.type === type ? {...i, qty: i.qty + 1} : i);
       }
       return [...prev, { id: item.id, name: item.name, price: item.price, type, qty: 1 }];
     });
@@ -55,27 +56,26 @@ export const PaymentModal = ({ app, services, onClose, onConfirm }: Props) => {
     setCart(prev => prev.filter((_, i) => i !== index));
   };
 
-  // 合計・税金計算
   const totalAmount = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
-  const taxAmount = Math.round(totalAmount - (totalAmount / 1.1)); // 10%内税計算
+  const taxAmount = Math.round(totalAmount - (totalAmount / 1.1));
   const netAmount = totalAmount - taxAmount;
 
   const handleComplete = () => {
-    onConfirm(totalAmount, netAmount, taxAmount, paymentMethod);
+    // 合計、税抜き、消費税、支払い方法、カート中身、そして「メモ」を渡す
+    onConfirm(totalAmount, netAmount, taxAmount, paymentMethod, cart, memo);
   };
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-8">
-      {/* 背景オーバーレイ */}
       <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-xl" onClick={onClose} />
       
       <div className="relative w-full max-w-6xl bg-white rounded-[3.5rem] shadow-2xl overflow-hidden flex flex-col md:flex-row h-[90vh]">
         
-        {/* 左側：商品・メニュー選択 */}
-        <div className="flex-1 p-8 overflow-y-auto bg-slate-50/50 border-r border-slate-100">
+        {/* 左側：商品・メニュー・メモ入力 */}
+        <div className="flex-1 p-8 overflow-y-auto bg-slate-50/50 border-r border-slate-100 custom-scrollbar">
           <div className="flex items-center gap-3 mb-8">
             <ShoppingCart className="text-indigo-600" />
-            <h3 className="text-xl font-black italic uppercase tracking-tighter">Add Items</h3>
+            <h3 className="text-xl font-black italic uppercase tracking-tighter">Add Items & Notes</h3>
           </div>
 
           <div className="space-y-8">
@@ -105,6 +105,20 @@ export const PaymentModal = ({ app, services, onClose, onConfirm }: Props) => {
                 ))}
               </div>
             </div>
+
+            {/* 施術メモ入力欄 👈 これを追加 */}
+            <div className="pt-4">
+              <div className="flex items-center gap-2 mb-4">
+                <FileText size={14} className="text-amber-500" />
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Treatment Notes (施術メモ)</p>
+              </div>
+              <textarea 
+                value={memo}
+                onChange={(e) => setMemo(e.target.value)}
+                placeholder="例：カラー配合 8-GB:6% = 1:1。前髪短め希望。"
+                className="w-full bg-white border-2 border-slate-100 rounded-[2rem] p-6 text-sm font-bold focus:border-amber-400 outline-none transition-all h-32 resize-none shadow-sm"
+              />
+            </div>
           </div>
         </div>
 
@@ -118,8 +132,7 @@ export const PaymentModal = ({ app, services, onClose, onConfirm }: Props) => {
             <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full transition-colors"><X/></button>
           </div>
 
-          {/* カート内容 */}
-          <div className="flex-1 overflow-y-auto mb-8 space-y-4">
+          <div className="flex-1 overflow-y-auto mb-8 space-y-4 custom-scrollbar">
             {cart.map((item, index) => (
               <div key={`${item.id}-${index}`} className="flex items-center justify-between group">
                 <div className="flex items-center gap-3">
@@ -138,7 +151,6 @@ export const PaymentModal = ({ app, services, onClose, onConfirm }: Props) => {
             ))}
           </div>
 
-          {/* 支払い方法 */}
           <div className="grid grid-cols-3 gap-2 mb-8">
             {[
               { id: 'cash', icon: Banknote, label: '現 金' },
@@ -156,7 +168,6 @@ export const PaymentModal = ({ app, services, onClose, onConfirm }: Props) => {
             ))}
           </div>
 
-          {/* 合計表示 */}
           <div className="bg-slate-900 rounded-[2rem] p-8 text-white mb-6 shadow-xl relative overflow-hidden">
             <div className="relative z-10">
               <div className="flex justify-between items-center mb-1">
