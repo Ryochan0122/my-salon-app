@@ -1,9 +1,9 @@
 "use client";
 import React, { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
+import { supabase, getCurrentShopId } from '@/lib/supabase';
 import { 
   Camera, Calendar, Image as ImageIcon, Loader2, AlertCircle, 
-  Search, Plus, FileText, MoreVertical, History, Edit3
+  Search, FileText, Edit3
 } from 'lucide-react';
 import { VisualAnnotation } from './VisualAnnotation';
 
@@ -13,7 +13,7 @@ interface ChartGalleryProps {
   appointments?: any[];
 }
 
-export const ChartGallery = ({ customerId, customerName = "お客様",appointments = [] }: ChartGalleryProps) => {
+export const ChartGallery = ({ customerId, customerName = "お客様", appointments = [] }: ChartGalleryProps) => {
   const [records, setRecords] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
@@ -29,8 +29,17 @@ export const ChartGallery = ({ customerId, customerName = "お客様",appointmen
     try {
       setLoading(true);
       setError(null);
-      // SQLスキーマに基づき 'visual_history' テーブルを使用
-      let query = supabase.from('visual_history').select('*').order('created_at', { ascending: false });
+      
+      const shopId = await getCurrentShopId();
+      if (!shopId) throw new Error("店舗IDが取得できませんでした。");
+
+      // SQLスキーマに基づき 'visual_history' テーブルを使用し、shop_id でフィルタリング
+      let query = supabase
+        .from('visual_history')
+        .select('*')
+        .eq('shop_id', shopId)
+        .order('created_at', { ascending: false });
+
       if (customerId) query = query.eq('customer_id', customerId);
       
       const { data, error: fetchError } = await query;
@@ -38,6 +47,7 @@ export const ChartGallery = ({ customerId, customerName = "お客様",appointmen
       setRecords(data || []);
     } catch (err: any) {
       setError(err.message);
+      console.error("Fetch error:", err);
     } finally {
       setLoading(false);
     }
@@ -45,11 +55,15 @@ export const ChartGallery = ({ customerId, customerName = "お客様",appointmen
 
   const handleUpload = async (file: File | Blob, isUpdate = false) => {
     if (!customerId) return alert("顧客を選択してください");
+    
     try {
       setIsUploading(true);
-      const fileName = `${customerId}/${Date.now()}.jpg`;
+      const shopId = await getCurrentShopId();
+      if (!shopId) throw new Error("店舗IDが取得できませんでした。");
+
+      // ストレージパスを shop_id/customer_id/filename にして整理
+      const fileName = `${shopId}/${customerId}/${Date.now()}.jpg`;
       
-      // バケット名を 'customer-photos' に統一
       const { error: uploadError } = await supabase.storage
         .from('customer-photos')
         .upload(fileName, file);
@@ -58,9 +72,10 @@ export const ChartGallery = ({ customerId, customerName = "お客様",appointmen
 
       const { data: urlData } = supabase.storage.from('customer-photos').getPublicUrl(fileName);
 
-      // SQLスキーマに基づき 'visual_history' に保存
+      // SQL保存時に shop_id を必ず含める
       const { error: dbError } = await supabase.from('visual_history').insert([
         { 
+          shop_id: shopId,
           customer_id: customerId, 
           image_url: urlData.publicUrl,
           note: isUpdate ? '手書きメモあり' : ''
@@ -111,24 +126,36 @@ export const ChartGallery = ({ customerId, customerName = "お客様",appointmen
               placeholder="日付やメモで検索..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-3 bg-slate-50 border-none rounded-xl text-xs font-bold focus:ring-2 focus:ring-indigo-500"
+              className="w-full pl-10 pr-4 py-3 bg-slate-50 border-none rounded-xl text-xs font-bold focus:ring-2 focus:ring-indigo-500 text-slate-900"
             />
           </div>
           
           <label className="cursor-pointer bg-slate-900 text-white px-6 py-3 rounded-xl font-black text-[10px] uppercase flex items-center gap-2 hover:bg-indigo-600 transition-all shadow-lg">
             {isUploading ? <Loader2 className="animate-spin" size={16} /> : <Camera size={16} />}
             新規撮影
-            <input type="file" className="hidden" accept="image/*" onChange={(e) => e.target.files?.[0] && handleUpload(e.target.files[0])} />
+            <input 
+              type="file" 
+              className="hidden" 
+              accept="image/*" 
+              onChange={(e) => e.target.files?.[0] && handleUpload(e.target.files[0])} 
+            />
           </label>
         </div>
       </div>
+
+      {/* エラー表示 */}
+      {error && (
+        <div className="bg-red-50 border border-red-100 text-red-600 p-4 rounded-2xl flex items-center gap-3">
+          <AlertCircle size={20} />
+          <p className="text-xs font-bold">{error}</p>
+        </div>
+      )}
 
       {/* 履歴グリッド */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
         {filteredRecords.map((record) => (
           <div key={record.id} className="group bg-white rounded-[3rem] border border-slate-100 shadow-xl overflow-hidden hover:shadow-2xl transition-all flex flex-col relative">
             
-            {/* 写真エリア */}
             <div className="relative h-72 bg-slate-100 overflow-hidden">
               <img src={record.image_url} alt="Style" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
               
@@ -139,7 +166,6 @@ export const ChartGallery = ({ customerId, customerName = "お客様",appointmen
                 </span>
               </div>
 
-              {/* クイック編集ボタン */}
               <button 
                 onClick={() => setEditingImageUrl(record.image_url)}
                 className="absolute bottom-6 right-6 w-12 h-12 bg-white text-slate-900 rounded-full flex items-center justify-center shadow-xl opacity-0 group-hover:opacity-100 transition-all hover:scale-110"
@@ -148,7 +174,6 @@ export const ChartGallery = ({ customerId, customerName = "お客様",appointmen
               </button>
             </div>
 
-            {/* コンテンツエリア */}
             <div className="p-8">
               <div className="bg-slate-50 rounded-[2rem] p-6 border border-slate-100">
                 <div className="flex items-start gap-3">
@@ -174,7 +199,7 @@ export const ChartGallery = ({ customerId, customerName = "お客様",appointmen
         />
       )}
 
-      {filteredRecords.length === 0 && (
+      {filteredRecords.length === 0 && !loading && (
         <div className="py-32 text-center bg-white rounded-[4rem] border-4 border-dashed border-slate-50">
           <ImageIcon size={48} className="mx-auto mb-4 text-slate-100" />
           <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">No Visual Records Found</p>

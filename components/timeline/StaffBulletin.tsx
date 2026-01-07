@@ -1,71 +1,147 @@
 "use client";
 import React, { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
-import { StickyNote, Send, Sparkles } from 'lucide-react';
+import { supabase, getCurrentShopId } from '@/lib/supabase';
+import { StickyNote, Send, Sparkles, MessageSquare, Clock } from 'lucide-react';
 
+/**
+ * スタッフ掲示板コンポーネント
+ * 当日の共有事項をリアルタイムで同期
+ */
 export const StaffBulletin = () => {
   const [notes, setNotes] = useState<any[]>([]);
   const [input, setInput] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // メモの取得
   const fetchNotes = async () => {
+    const shopId = await getCurrentShopId();
+    if (!shopId) return;
+
     const today = new Date().toISOString().split('T')[0];
     const { data } = await supabase
       .from('staff_notes')
       .select('*')
+      .eq('shop_id', shopId)
       .eq('date', today)
       .order('created_at', { ascending: true });
+    
     setNotes(data || []);
   };
 
-  useEffect(() => { fetchNotes(); }, []);
+  // リアルタイム購読の設定
+  useEffect(() => {
+    fetchNotes();
+
+    // Supabase Realtimeでメモの更新を監視
+    const channel = supabase
+      .channel('staff_notes_realtime')
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: 'staff_notes' 
+      }, () => {
+        fetchNotes();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
 
   const handlePost = async () => {
-    if (!input.trim()) return;
-    const { error } = await supabase.from('staff_notes').insert([
-      { content: input, date: new Date().toISOString().split('T')[0] }
-    ]);
-    if (!error) {
-      setInput('');
-      fetchNotes();
+    if (!input.trim() || isSubmitting) return;
+    
+    setIsSubmitting(true);
+    try {
+      const shopId = await getCurrentShopId();
+      if (!shopId) return;
+
+      const { error } = await supabase.from('staff_notes').insert([
+        { 
+          shop_id: shopId,
+          content: input, 
+          date: new Date().toISOString().split('T')[0] 
+        }
+      ]);
+
+      if (!error) {
+        setInput('');
+      }
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   return (
-    <div className="mt-6 bg-indigo-50/50 rounded-[2.5rem] p-6 border border-indigo-100 shadow-sm">
-      <div className="flex items-center gap-2 mb-4 px-2">
-        <div className="p-1.5 bg-indigo-500 rounded-lg text-white">
-          <StickyNote size={14} />
+    <div className="mt-8 bg-slate-900 rounded-[3rem] p-8 shadow-2xl shadow-indigo-100/20 border border-slate-800 relative overflow-hidden group">
+      {/* 背景の装飾的なグラデーション */}
+      <div className="absolute -top-24 -right-24 w-48 h-48 bg-indigo-500/10 rounded-full blur-3xl group-hover:bg-indigo-500/20 transition-all duration-1000" />
+      
+      <div className="flex items-center justify-between mb-6 px-2 relative z-10">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 bg-indigo-500 rounded-2xl text-white shadow-lg shadow-indigo-500/30">
+            <MessageSquare size={18} />
+          </div>
+          <div>
+            <span className="text-[10px] font-black uppercase tracking-[0.3em] text-indigo-400 block">Team Connect</span>
+            <h4 className="text-sm font-black text-white uppercase tracking-wider">Staff Bulletin</h4>
+          </div>
         </div>
-        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-900">Today's Bulletin</span>
+        <div className="px-3 py-1 bg-slate-800 rounded-full border border-slate-700">
+          <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest animate-pulse">Live</span>
+        </div>
       </div>
       
-      <div className="space-y-3 mb-4 max-h-[200px] overflow-y-auto custom-scrollbar pr-2">
-        {notes.length > 0 ? notes.map(n => (
-          <div key={n.id} className="bg-white p-4 rounded-2xl shadow-sm border border-indigo-50 animate-in fade-in slide-in-from-bottom-2">
-            <p className="text-[11px] font-bold text-slate-700 leading-relaxed">{n.content}</p>
-          </div>
-        )) : (
-          <div className="py-8 text-center opacity-20">
-            <Sparkles size={24} className="mx-auto mb-2 text-indigo-300" />
-            <p className="text-[9px] font-black uppercase tracking-widest">No updates yet</p>
+      {/* メッセージリスト */}
+      <div className="space-y-4 mb-6 max-h-[280px] overflow-y-auto custom-scrollbar pr-2 relative z-10">
+        {notes.length > 0 ? (
+          notes.map((n, idx) => (
+            <div 
+              key={n.id} 
+              className="bg-slate-800/50 backdrop-blur-sm p-5 rounded-[1.8rem] border border-slate-700/50 animate-in fade-in slide-in-from-bottom-4 duration-500"
+              style={{ animationDelay: `${idx * 50}ms` }}
+            >
+              <div className="flex items-start justify-between gap-4">
+                <p className="text-[11px] font-bold text-slate-200 leading-relaxed italic">
+                  "{n.content}"
+                </p>
+                <div className="shrink-0 flex items-center gap-1.5 opacity-30">
+                  <Clock size={10} className="text-slate-400" />
+                  <span className="text-[8px] font-black text-slate-400">
+                    {new Date(n.created_at).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                </div>
+              </div>
+            </div>
+          ))
+        ) : (
+          <div className="py-12 text-center relative">
+            <div className="w-12 h-12 bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4 border border-slate-700">
+              <Sparkles size={20} className="text-slate-600" />
+            </div>
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">No updates for today</p>
           </div>
         )}
       </div>
 
-      <div className="relative">
+      {/* 入力エリア */}
+      <div className="relative z-10">
         <input 
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && handlePost()}
-          placeholder="スタッフへ共有事項を入力..."
-          className="w-full bg-white border-none rounded-[1.2rem] py-4 pl-5 pr-12 text-[11px] font-bold placeholder:text-slate-300 shadow-inner"
+          placeholder="チームへの共有事項を入力..."
+          disabled={isSubmitting}
+          className="w-full bg-slate-800 border-2 border-transparent focus:border-indigo-500/50 rounded-[1.5rem] py-5 pl-6 pr-14 text-xs font-bold text-white placeholder:text-slate-500 shadow-inner transition-all outline-none"
         />
         <button 
           onClick={handlePost}
-          className="absolute right-2 top-1/2 -translate-y-1/2 p-2.5 bg-indigo-600 text-white rounded-xl hover:bg-slate-900 transition-colors shadow-lg shadow-indigo-100"
+          disabled={isSubmitting || !input.trim()}
+          className="absolute right-2.5 top-1/2 -translate-y-1/2 p-3 bg-indigo-600 text-white rounded-xl hover:bg-white hover:text-indigo-600 transition-all shadow-xl shadow-indigo-900/20 disabled:opacity-30 active:scale-90"
         >
-          <Send size={14} />
+          <Send size={16} />
         </button>
       </div>
     </div>

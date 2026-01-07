@@ -1,9 +1,8 @@
 "use client";
 import React, { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
+import { supabase, getCurrentShopId } from '@/lib/supabase';
 import { 
-  Search, Plus, Camera, FileText, Calendar, 
-  MoreVertical, History, Image as ImageIcon, Loader2 
+  Search, Camera, Calendar, Image as ImageIcon, Loader2 
 } from 'lucide-react';
 
 export const ChartList = () => {
@@ -17,20 +16,29 @@ export const ChartList = () => {
   }, []);
 
   const fetchCharts = async () => {
-    setLoading(true);
-    // SQLスキーマに合わせて visual_history と customers を結合
-    const { data, error } = await supabase
-      .from('visual_history')
-      .select(`
-        *,
-        customers (
-          name
-        )
-      `)
-      .order('created_at', { ascending: false });
-    
-    if (!error) setCharts(data || []);
-    setLoading(false);
+    try {
+      setLoading(true);
+      const shopId = await getCurrentShopId();
+      if (!shopId) return;
+
+      // SQLスキーマに合わせて visual_history と customers を結合し、shop_idで絞り込み
+      const { data, error } = await supabase
+        .from('visual_history')
+        .select(`
+          *,
+          customers (
+            name
+          )
+        `)
+        .eq('shop_id', shopId) // 👈 店舗フィルタ
+        .order('created_at', { ascending: false });
+      
+      if (!error) setCharts(data || []);
+    } catch (err) {
+      console.error('Fetch error:', err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, recordId: string, customerId: string) => {
@@ -40,11 +48,15 @@ export const ChartList = () => {
     setUploadingId(recordId);
 
     try {
+      const shopId = await getCurrentShopId();
+      if (!shopId) throw new Error("店舗IDが取得できませんでした");
+
       const fileExt = file.name.split('.').pop();
-      const fileName = `${customerId}/${Date.now()}.${fileExt}`;
+      // ストレージパスを shop_id/customer_id/... に統一
+      const fileName = `${shopId}/${customerId}/${Date.now()}.${fileExt}`;
 
       const { error: uploadError } = await supabase.storage
-        .from('customer-photos') // バケット名を統一
+        .from('customer-photos')
         .upload(fileName, file);
 
       if (uploadError) throw uploadError;
@@ -53,16 +65,19 @@ export const ChartList = () => {
         .from('customer-photos')
         .getPublicUrl(fileName);
 
+      // DBの image_url を更新。セキュリティのため shop_id も条件に加える
       const { error: updateError } = await supabase
         .from('visual_history')
         .update({ image_url: publicUrl })
-        .eq('id', recordId);
+        .eq('id', recordId)
+        .eq('shop_id', shopId); // 👈 自分の店のデータのみ更新可能
 
       if (updateError) throw updateError;
-      fetchCharts();
+      
+      fetchCharts(); // 画面を更新
     } catch (error) {
       console.error('Upload Error:', error);
-      alert('失敗しました。');
+      alert('画像のアップロードに失敗しました。');
     } finally {
       setUploadingId(null);
     }
@@ -84,7 +99,7 @@ export const ChartList = () => {
             placeholder="お客様名、メモで検索..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-14 pr-6 py-4 bg-slate-50 border-none rounded-2xl font-bold focus:ring-2 focus:ring-indigo-500 text-sm"
+            className="w-full pl-14 pr-6 py-4 bg-slate-50 border-none rounded-2xl font-bold focus:ring-2 focus:ring-indigo-500 text-sm text-slate-900"
           />
         </div>
       </div>
@@ -96,9 +111,19 @@ export const ChartList = () => {
             
             <div className="relative h-72 bg-slate-100 overflow-hidden">
               <img src={chart.image_url} alt="施術写真" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
+              
+              {/* アップロード中のローディング表示 */}
+              {uploadingId === chart.id && (
+                <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-20">
+                  <Loader2 className="animate-spin text-white" size={32} />
+                </div>
+              )}
+
               <div className="absolute top-6 left-6 bg-white/90 backdrop-blur px-4 py-2 rounded-xl flex items-center gap-2 shadow-sm z-10">
                 <Calendar size={14} className="text-indigo-600" />
-                <span className="text-[10px] font-black text-slate-900">{new Date(chart.created_at).toLocaleDateString()}</span>
+                <span className="text-[10px] font-black text-slate-900">
+                  {new Date(chart.created_at).toLocaleDateString('ja-JP')}
+                </span>
               </div>
             </div>
 
@@ -110,27 +135,41 @@ export const ChartList = () => {
                   </div>
                   <div>
                     <h4 className="font-black text-xl text-slate-900 tracking-tighter">{chart.customers?.name} 様</h4>
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">VISUAL HISTORY</p>
                   </div>
                 </div>
               </div>
 
               <div className="flex-1 bg-slate-50 rounded-[2rem] p-6 mb-8 border border-slate-100">
-                <p className="text-xs font-bold text-slate-600 leading-relaxed">
+                <p className="text-xs font-bold text-slate-600 leading-relaxed line-clamp-3">
                   {chart.note || "施術メモはありません。"}
                 </p>
               </div>
 
               <div className="flex items-center justify-between">
-                <label className="cursor-pointer flex items-center gap-2 px-6 py-3 bg-indigo-50 text-indigo-600 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-600 hover:text-white transition-all">
+                <label className="cursor-pointer group/btn flex items-center gap-2 px-6 py-3 bg-indigo-50 text-indigo-600 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-600 hover:text-white transition-all w-full justify-center">
                   <Camera size={18} />
                   <span>写真を差し替え</span>
-                  <input type="file" className="hidden" accept="image/*" onChange={(e) => handleFileUpload(e, chart.id, chart.customer_id)} />
+                  <input 
+                    type="file" 
+                    className="hidden" 
+                    accept="image/*" 
+                    onChange={(e) => handleFileUpload(e, chart.id, chart.customer_id)} 
+                  />
                 </label>
               </div>
             </div>
           </div>
         ))}
       </div>
+
+      {/* データがない場合の表示 */}
+      {!loading && filteredCharts.length === 0 && (
+        <div className="py-32 text-center bg-white rounded-[4rem] border-4 border-dashed border-slate-50">
+          <ImageIcon size={48} className="mx-auto mb-4 text-slate-100" />
+          <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">No Visual Records Found</p>
+        </div>
+      )}
     </div>
   );
 };

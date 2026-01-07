@@ -17,7 +17,8 @@ interface Props {
   onPay: (app: Appointment) => void;
   onEdit: (app: Appointment) => void;
   onDelete: (id: string) => void;
-  onMoveApp: (appId: string, newStartTime: string) => Promise<void>;
+  // ★ Home.tsx の handleMoveAppointment(id, newStaffId, newStartTime) に合わせる
+  onMoveApp: (appId: string, newStaffId: string, newStartTime: string) => Promise<void>;
   onShowChart: (name: string) => void;
   onAddAtTime?: (staffId: string, date: Date, time: string) => void;
   viewMode?: "horizontal" | "vertical";
@@ -38,34 +39,31 @@ export const StaffRow = ({
   const END_HOUR = 21;
   const TOTAL_MINUTES = (END_HOUR - START_HOUR) * 60; 
 
-  // --- 空き時間ガイドの計算ロジック ---
+  // --- 空き時間ガイドの計算ロジック (既存維持) ---
   const getFreeSlots = (): FreeSlot[] => {
-    // 予約を開始時間順にソート
     const sortedApps = [...appointments].sort((a, b) => 
       new Date(a.start_time).getTime() - new Date(b.start_time).getTime()
     );
 
-    const slots: FreeSlot[] = []; // 型を明示的に定義
+    const slots: FreeSlot[] = [];
     let lastEndTime = new Date(selectedDate);
     lastEndTime.setHours(START_HOUR, 0, 0, 0);
 
     const businessEnd = new Date(selectedDate);
     businessEnd.setHours(END_HOUR, 0, 0, 0);
 
-    // 予約の隙間を抽出
-    [...sortedApps, { start_time: businessEnd.toISOString() }].forEach((app) => {
+    [...sortedApps, { start_time: businessEnd.toISOString() } as any].forEach((app) => {
       const currentStart = new Date(app.start_time);
       const diffMinutes = (currentStart.getTime() - lastEndTime.getTime()) / (1000 * 60);
 
-      if (diffMinutes >= 30) { // 30分以上の空きがあれば表示
+      if (diffMinutes >= 30) {
         slots.push({
           start: new Date(lastEndTime),
           duration: diffMinutes
         });
       }
       
-      // Appointment型であるかチェックして終了時間を更新
-      if ('end_time' in app && app.end_time) {
+      if (app.end_time) {
         const appEnd = new Date(app.end_time);
         if (appEnd > lastEndTime) lastEndTime = appEnd;
       }
@@ -83,7 +81,9 @@ export const StaffRow = ({
 
     const newStart = new Date(selectedDate);
     newStart.setHours(hour, minute, 0, 0);
-    onMoveApp(appId, newStart.toISOString());
+
+    // ★ 修正：Home.tsx の引数に合わせて member.id (スタッフID) を追加
+    onMoveApp(appId, member.id, newStart.toISOString());
   };
 
   return (
