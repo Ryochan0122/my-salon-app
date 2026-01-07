@@ -1,6 +1,15 @@
 "use client";
 import React from 'react';
-import { Calendar, Camera, CreditCard, Settings, ArrowRight, LucideIcon, Users, Zap } from 'lucide-react';
+import { 
+  Calendar, 
+  CreditCard, 
+  Settings, 
+  ArrowRight, 
+  LucideIcon, 
+  Users, 
+  Zap, 
+  TrendingUp
+} from 'lucide-react';
 
 interface Props {
   onNavigate: (view: string) => void;
@@ -27,10 +36,10 @@ const LocalMenuCard = ({
       <Icon size={32} />
     </div>
     <h3 className="text-3xl font-black text-white italic tracking-tighter uppercase leading-none">{title}</h3>
-    <p className="text-slate-500 text-[11px] font-black uppercase tracking-[0.2em] mt-2 mb-8">{desc}</p>
+    <p className="text-slate-500 text-[11px] font-bold tracking-[0.1em] mt-2 mb-8">{desc}</p>
     
     <div className="flex items-center gap-2 text-indigo-400 font-black text-[10px] uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-all translate-y-2 group-hover:translate-y-0">
-      Launch Module <ArrowRight size={14} />
+      画面を開く <ArrowRight size={14} />
     </div>
 
     {/* 背景の装飾的なグラデーション */}
@@ -49,15 +58,15 @@ export const MainMenu = ({ onNavigate }: Props) => {
       <div className="max-w-[1400px] w-full relative z-10">
         <header className="text-center mb-28 animate-in fade-in slide-in-from-top-12 duration-1000">
           <div className="inline-flex items-center gap-2 px-5 py-2 bg-white/5 border border-white/10 rounded-full text-indigo-400 text-[10px] font-black uppercase tracking-[0.4em] mb-10 backdrop-blur-sm">
-            <Zap size={12} className="fill-indigo-400" /> System Version 2.0.1
+            <Zap size={12} className="fill-indigo-400" /> システム稼働中 v2.0.1
           </div>
           
           <h1 className="text-8xl md:text-9xl font-black text-white italic tracking-tighter mb-8 uppercase leading-none">
             AURA <span className="text-indigo-600 drop-shadow-[0_0_30px_rgba(79,70,229,0.4)]">STUDIO</span>
           </h1>
           
-          <p className="text-slate-500 text-xs font-bold uppercase tracking-[0.6em] mb-12">
-            Intelligent Salon Management OS
+          <p className="text-slate-500 text-xs font-bold tracking-[0.4em] mb-12">
+            サロン経営・顧客管理システム
           </p>
           
           <div className="h-px w-48 bg-gradient-to-r from-transparent via-indigo-500 to-transparent mx-auto opacity-50" />
@@ -67,35 +76,35 @@ export const MainMenu = ({ onNavigate }: Props) => {
           <LocalMenuCard 
             icon={Calendar} 
             title="予約" 
-            desc="Timeline" 
+            desc="予約状況の確認・登録" 
             color="bg-indigo-600" 
             onClick={() => onNavigate('calendar')} 
           />
           <LocalMenuCard 
             icon={Users} 
             title="顧客" 
-            desc="Intelligence" 
+            desc="顧客情報の管理・検索" 
             color="bg-amber-500" 
             onClick={() => onNavigate('customers')} 
           />
           <LocalMenuCard 
-            icon={Camera} 
-            title="カルテ" 
-            desc="Visual Charts" 
+            icon={TrendingUp} 
+            title="売上" 
+            desc="売上履歴・データの確認" 
             color="bg-rose-500" 
-            onClick={() => onNavigate('chart')} 
+            onClick={() => onNavigate('sales')} 
           />
           <LocalMenuCard 
             icon={CreditCard} 
             title="レジ" 
-            desc="Cashless POS" 
+            desc="会計・支払い処理" 
             color="bg-emerald-600" 
             onClick={() => onNavigate('sales')} 
           />
           <LocalMenuCard 
             icon={Settings} 
             title="設定" 
-            desc="Aura Engine" 
+            desc="メニュー・スタッフ設定" 
             color="bg-slate-700" 
             onClick={() => onNavigate('settings')} 
           />
@@ -103,12 +112,12 @@ export const MainMenu = ({ onNavigate }: Props) => {
 
         <footer className="mt-32 flex flex-col items-center gap-6 border-t border-white/5 pt-16">
           <div className="flex flex-wrap justify-center items-center gap-10">
-            <StatusBadge color="bg-emerald-500" label="Core Database Active" />
-            <StatusBadge color="bg-indigo-500" label="Analysis Engine Online" />
-            <StatusBadge color="bg-rose-500" label="Security Protocol v4" />
+            <StatusBadge color="bg-emerald-500" label="データベース 接続済み" />
+            <StatusBadge color="bg-indigo-500" label="分析エンジン 正常稼働" />
+            <StatusBadge color="bg-rose-500" label="セキュリティ 適用中" />
           </div>
           <p className="text-slate-600 text-[9px] font-black uppercase tracking-widest mt-4">
-            &copy; 2026 AURA STUDIO. All Rights Reserved.
+            &copy; 2026 AURA STUDIO. 無断複写・転載を禁じます
           </p>
         </footer>
       </div>
@@ -119,6 +128,6 @@ export const MainMenu = ({ onNavigate }: Props) => {
 const StatusBadge = ({ color, label }: { color: string, label: string }) => (
   <div className="flex items-center gap-3">
     <div className={`w-1.5 h-1.5 ${color} rounded-full animate-pulse shadow-[0_0_10px_currentColor]`} />
-    <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">{label}</span>
+    <span className="text-[10px] font-black text-slate-500 tracking-[0.1em]">{label}</span>
   </div>
 );

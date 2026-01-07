@@ -26,7 +26,7 @@ export const AuthGuard = ({ children }: { children: React.ReactNode }) => {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) alert("ログイン失敗: " + error.message);
+    if (error) alert("ログインに失敗しました: " + error.message);
   };
 
   if (loading) {
@@ -46,14 +46,14 @@ export const AuthGuard = ({ children }: { children: React.ReactNode }) => {
               <Scissors size={32} />
             </div>
             <h2 className="text-3xl font-black italic text-slate-900 tracking-tighter uppercase">Salon Pro Manager</h2>
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mt-2">Private Access Only</p>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mt-2">関係者専用アクセス</p>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
               <input 
                 type="email" 
-                placeholder="EMAIL ADDRESS"
+                placeholder="メールアドレス"
                 className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl font-bold focus:ring-2 focus:ring-indigo-600 transition-all text-sm"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -63,7 +63,7 @@ export const AuthGuard = ({ children }: { children: React.ReactNode }) => {
             <div>
               <input 
                 type="password" 
-                placeholder="PASSWORD"
+                placeholder="パスワード"
                 className="w-full px-6 py-4 bg-slate-50 border-none rounded-2xl font-bold focus:ring-2 focus:ring-indigo-600 transition-all text-sm"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -75,7 +75,7 @@ export const AuthGuard = ({ children }: { children: React.ReactNode }) => {
               className="w-full py-5 bg-slate-900 text-white rounded-2xl font-black flex items-center justify-center gap-3 hover:bg-indigo-600 transition-all shadow-xl mt-4"
             >
               <Lock size={18} />
-              <span>UNLOCK DASHBOARD</span>
+              <span>ダッシュボードにログイン</span>
             </button>
           </form>
         </div>

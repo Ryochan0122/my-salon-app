@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect, useMemo } from 'react';
-import { X, User, Clock, MessageSquare, History, Phone, MapPin, Calendar, Check } from 'lucide-react';
+import { X, User, Clock, MessageSquare, History, Phone, MapPin, Calendar, Check, Zap } from 'lucide-react';
 import { Staff, Service, Appointment } from '@/types';
 import { supabase } from '@/lib/supabase';
 
@@ -25,12 +25,14 @@ export const AddAppointmentModal = ({ staff, services, initialData, onClose, onC
     staff_id: initialData?.staff_id || staff[0]?.id || '',
     menu_name: initialData?.menu_name || services[0]?.name || '',
     date: initialDate.toISOString().split('T')[0],
-    time: initialDate.toTimeString().slice(0, 5)
+    time: initialDate.toTimeString().slice(0, 5),
+    duration: 60 // ★ 追加: デフォルト所要時間
   });
 
   const [customerSuggestions, setCustomerSuggestions] = useState<any[]>([]);
   const [lastVisit, setLastVisit] = useState<any>(null);
 
+  // 時間の選択肢 (9:00 - 21:00)
   const timeOptions = useMemo(() => {
     const options = [];
     for (let h = 9; h <= 21; h++) {
@@ -40,6 +42,18 @@ export const AddAppointmentModal = ({ staff, services, initialData, onClose, onC
     }
     return options;
   }, []);
+
+  // ★ メニュー選択時に時間を自動セットする
+  const handleMenuChange = (menuName: string) => {
+    const selectedService = services.find(s => s.name === menuName);
+    const duration = selectedService ? selectedService.duration_minutes : 60;
+    
+    setFormData(prev => ({
+      ...prev,
+      menu_name: menuName,
+      duration: duration
+    }));
+  };
 
   useEffect(() => {
     if (formData.customer_name.length >= 1 && !formData.customer_id) {
@@ -80,17 +94,16 @@ export const AddAppointmentModal = ({ staff, services, initialData, onClose, onC
 
   const handleConfirm = () => {
     const combinedStartTime = `${formData.date}T${formData.time}:00`;
+    // page.tsx 側で終了時間を計算しやすいよう duration も渡す
     onConfirm({ ...formData, start_time: combinedStartTime });
   };
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
-      {/* 背景オーバーレイ */}
       <div className="absolute inset-0 bg-slate-900/70 backdrop-blur-md" onClick={onClose} />
       
-      <div className="relative bg-white w-full max-w-5xl rounded-[3rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300 h-[90vh] flex flex-col md:flex-row">
+      <div className="relative bg-white w-full max-w-5xl rounded-[3rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300 h-[90vh] flex flex-col md:flex-row border border-white/20">
         
-        {/* ❌ 閉じるボタン (右上に固定) */}
         <button 
           onClick={onClose}
           className="absolute right-6 top-6 z-50 p-3 bg-slate-100 hover:bg-red-50 hover:text-red-500 rounded-full transition-all group"
@@ -98,18 +111,17 @@ export const AddAppointmentModal = ({ staff, services, initialData, onClose, onC
           <X size={24} className="group-hover:rotate-90 transition-transform duration-300" />
         </button>
 
-        {/* 左側：メインフォーム */}
         <div className="flex-1 p-8 md:p-14 overflow-y-auto custom-scrollbar">
           <header className="mb-10">
             <h3 className="text-4xl font-black italic text-slate-900 tracking-tighter uppercase leading-none">
-              {initialData ? 'Edit' : 'New'} <span className="text-indigo-600">Booking .</span>
+              {initialData ? '予約の編集' : '新規予約'} <span className="text-indigo-600">.</span>
             </h3>
           </header>
 
           <div className="space-y-8">
-            {/* 顧客入力 */}
+            {/* お客様検索 */}
             <div className="relative">
-              <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1 mb-2 block">Customer Name</label>
+              <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1 mb-2 block">お客様名</label>
               <div className="relative">
                 <User className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
                 <input 
@@ -131,10 +143,10 @@ export const AddAppointmentModal = ({ staff, services, initialData, onClose, onC
                     >
                       <div>
                         <div className="font-black text-slate-900 text-lg">{c.name}</div>
-                        <div className="text-xs text-slate-400 font-bold tracking-wider">{c.tel || 'No Phone Number'}</div>
+                        <div className="text-xs text-slate-400 font-bold tracking-wider">{c.tel || '電話番号なし'}</div>
                       </div>
                       <div className="px-4 py-2 bg-indigo-100 text-indigo-600 rounded-full font-black text-[10px] uppercase flex items-center gap-1">
-                        <Check size={12} /> Select Existing
+                        <Check size={12} /> 既存顧客を選択
                       </div>
                     </button>
                   ))}
@@ -142,12 +154,12 @@ export const AddAppointmentModal = ({ staff, services, initialData, onClose, onC
               )}
             </div>
 
-            {/* 新規詳細 (自動展開) */}
+            {/* 新規顧客用入力フォーム */}
             {!formData.customer_id && formData.customer_name && (
               <div className="p-8 bg-indigo-50/40 rounded-[2.5rem] space-y-5 animate-in fade-in slide-in-from-top-2 border border-indigo-100/50">
                 <div className="flex items-center gap-2 mb-2">
                   <div className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></div>
-                  <p className="text-[10px] font-black text-indigo-500 uppercase tracking-[0.2em]">New Customer Profile</p>
+                  <p className="text-[10px] font-black text-indigo-500 uppercase tracking-[0.2em]">新規顧客プロファイル</p>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                   <div className="relative">
@@ -194,7 +206,7 @@ export const AddAppointmentModal = ({ staff, services, initialData, onClose, onC
 
             <div className="grid grid-cols-2 gap-5">
               <div>
-                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1 mb-2 block">Stylist</label>
+                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1 mb-2 block">担当スタッフ</label>
                 <select 
                   value={formData.staff_id}
                   onChange={(e) => setFormData({...formData, staff_id: e.target.value})}
@@ -204,21 +216,26 @@ export const AddAppointmentModal = ({ staff, services, initialData, onClose, onC
                 </select>
               </div>
               <div>
-                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1 mb-2 block">Menu</label>
-                <select 
-                  value={formData.menu_name}
-                  onChange={(e) => setFormData({...formData, menu_name: e.target.value})}
-                  className="w-full px-5 py-4 bg-slate-50 border-none rounded-2xl font-bold appearance-none cursor-pointer hover:bg-slate-100 transition-colors"
-                >
-                  {services.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
-                </select>
+                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1 mb-2 block">メニュー名</label>
+                <div className="relative">
+                  <select 
+                    value={formData.menu_name}
+                    onChange={(e) => handleMenuChange(e.target.value)}
+                    className="w-full px-5 py-4 bg-slate-50 border-none rounded-2xl font-bold appearance-none cursor-pointer hover:bg-slate-100 transition-colors"
+                  >
+                    {services.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
+                  </select>
+                  {/* 自動計算された時間のバッジ */}
+                  <div className="absolute right-10 top-1/2 -translate-y-1/2 flex items-center gap-1.5 px-3 py-1 bg-indigo-600 text-white rounded-lg text-[9px] font-black animate-in fade-in zoom-in-90">
+                    <Zap size={10} className="fill-current" /> {formData.duration}min
+                  </div>
+                </div>
               </div>
             </div>
 
-            {/* 日時選択 */}
             <div className="grid grid-cols-2 gap-5">
               <div>
-                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1 mb-2 block">Date</label>
+                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1 mb-2 block">予約日</label>
                 <div className="relative">
                   <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                   <input 
@@ -230,7 +247,7 @@ export const AddAppointmentModal = ({ staff, services, initialData, onClose, onC
                 </div>
               </div>
               <div>
-                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1 mb-2 block">Time Slot</label>
+                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1 mb-2 block">開始時間</label>
                 <div className="relative">
                   <Clock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                   <select 
@@ -249,17 +266,17 @@ export const AddAppointmentModal = ({ staff, services, initialData, onClose, onC
             onClick={handleConfirm}
             className="w-full mt-12 py-7 bg-slate-900 text-white rounded-[2.5rem] font-black text-2xl hover:bg-indigo-600 transition-all shadow-2xl shadow-indigo-100 active:scale-[0.97]"
           >
-            {initialData ? 'Update Schedule' : 'Confirm Booking'}
+            {initialData ? '内容を更新する' : '予約を確定する'}
           </button>
         </div>
 
-        {/* 右側：履歴 */}
+        {/* 右サイドバー：カルテ履歴 */}
         <div className="w-full md:w-96 bg-slate-50 p-10 flex flex-col border-l border-slate-100">
           <div className="flex items-center gap-2 mb-10">
             <div className="p-2 bg-indigo-500 rounded-xl text-white">
               <History size={20} />
             </div>
-            <span className="text-sm font-black uppercase tracking-[0.2em] text-slate-900">Treatment History</span>
+            <span className="text-sm font-black uppercase tracking-[0.2em] text-slate-900">前回の施術履歴</span>
           </div>
 
           {lastVisit ? (
@@ -268,10 +285,10 @@ export const AddAppointmentModal = ({ staff, services, initialData, onClose, onC
                 {lastVisit.menu_name}
               </div>
               <p className="text-sm font-bold text-slate-600 leading-relaxed italic border-l-4 border-indigo-100 pl-4">
-                "{lastVisit.memo || "No technical notes recorded for this visit."}"
+                "{lastVisit.memo || "この時の技術メモは登録されていません。"}"
               </p>
               <div className="mt-8 pt-6 border-t border-slate-50 flex items-center justify-between">
-                <span className="text-[10px] text-slate-300 font-black uppercase tracking-widest">Last Visit</span>
+                <span className="text-[10px] text-slate-300 font-black uppercase tracking-widest">最終来店日</span>
                 <span className="text-xs font-bold text-slate-400">{new Date(lastVisit.created_at).toLocaleDateString()}</span>
               </div>
             </div>
@@ -281,7 +298,7 @@ export const AddAppointmentModal = ({ staff, services, initialData, onClose, onC
                 <MessageSquare size={32} className="text-slate-300" />
               </div>
               <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest leading-loose">
-                First time customer or<br/>no records available.
+                新規のお客様、または<br/>過去の記録がありません。
               </p>
             </div>
           )}

@@ -23,9 +23,11 @@ export const CustomerHistoryModal = ({ customerName, history, onClose }: Props) 
           </button>
         </div>
 
-        <div className="p-8 max-h-[60vh] overflow-y-auto">
+        <div className="p-8 max-h-[60vh] overflow-y-auto custom-scrollbar">
           {history.length === 0 ? (
-            <div className="text-center py-10 text-slate-400 font-black italic tracking-widest">NO PREVIOUS VISITS</div>
+            <div className="text-center py-10 text-slate-400 font-black italic tracking-widest">
+              過去の来店履歴はありません
+            </div>
           ) : (
             <div className="space-y-6">
               {history.map((item) => (
@@ -33,7 +35,7 @@ export const CustomerHistoryModal = ({ customerName, history, onClose }: Props) 
                   <div className="absolute -left-[9px] top-0 w-4 h-4 bg-white border-2 border-indigo-500 rounded-full" />
                   <div className="flex justify-between items-start mb-1">
                     <span className="text-[10px] font-black text-slate-400 flex items-center gap-1 uppercase">
-                      <Clock size={10} /> {new Date(item.created_at).toLocaleDateString()}
+                      <Clock size={10} /> {new Date(item.created_at).toLocaleDateString('ja-JP')}
                     </span>
                     <span className="text-xs font-black italic text-indigo-600">¥{item.total_amount.toLocaleString()}</span>
                   </div>
@@ -42,7 +44,7 @@ export const CustomerHistoryModal = ({ customerName, history, onClose }: Props) 
                       <Tag size={12} className="text-indigo-400" /> {item.menu_name}
                     </div>
                     <div className="flex items-center gap-1 text-[9px] text-slate-400 font-bold uppercase">
-                      <User size={10} /> Staff: {(item as any).staff?.name || 'Unknown'}
+                      <User size={10} /> 担当: {(item as any).staff?.name || '未設定'}
                     </div>
                   </div>
                 </div>
@@ -53,7 +55,7 @@ export const CustomerHistoryModal = ({ customerName, history, onClose }: Props) 
         
         <div className="p-8 bg-slate-50 border-t border-slate-100 flex justify-end">
           <button onClick={onClose} className="px-8 py-3 bg-slate-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-600 transition-all">
-            Close Chart
+            カルテを閉じる
           </button>
         </div>
       </div>

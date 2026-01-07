@@ -1,148 +1,187 @@
 "use client";
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Sale, Service, Appointment } from '@/types'; // Appointmentを追加
-// Rechartsのインポート
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, PieChart, Pie } from 'recharts';
-// Lucide-reactのアイコン
-import { TrendingUp, Users, DollarSign, ShoppingBag, CreditCard } from 'lucide-react';
+import { 
+  Camera, Calendar, Image as ImageIcon, Loader2, AlertCircle, 
+  Search, Plus, FileText, MoreVertical, History, Edit3
+} from 'lucide-react';
+import { VisualAnnotation } from './VisualAnnotation';
 
-// Propsの型定義を追加
 interface ChartGalleryProps {
-  appointments: Appointment[];
+  customerId?: string;
+  customerName?: string;
+  appointments?: any[];
 }
 
-export const ChartGallery = ({ appointments }: ChartGalleryProps) => {
-  const [sales, setSales] = useState<Sale[]>([]);
-  const [services, setServices] = useState<Service[]>([]);
+export const ChartGallery = ({ customerId, customerName = "お客様",appointments = [] }: ChartGalleryProps) => {
+  const [records, setRecords] = useState<any[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [editingImageUrl, setEditingImageUrl] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchData = async () => {
-      // 売上データとサービスデータを取得
-      const { data: salesData } = await supabase.from('sales').select('*');
-      const { data: servicesData } = await supabase.from('services').select('*');
-      setSales(salesData || []);
-      setServices(servicesData || []);
+    fetchVisualHistory();
+  }, [customerId]);
+
+  const fetchVisualHistory = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      // SQLスキーマに基づき 'visual_history' テーブルを使用
+      let query = supabase.from('visual_history').select('*').order('created_at', { ascending: false });
+      if (customerId) query = query.eq('customer_id', customerId);
+      
+      const { data, error: fetchError } = await query;
+      if (fetchError) throw fetchError;
+      setRecords(data || []);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
       setLoading(false);
-    };
-    fetchData();
-  }, []);
+    }
+  };
 
-  // グラフ用集計データ
-  const menuStats = services.map((svc, index) => ({
-    name: svc.name,
-    value: svc.price
-  }));
+  const handleUpload = async (file: File | Blob, isUpdate = false) => {
+    if (!customerId) return alert("顧客を選択してください");
+    try {
+      setIsUploading(true);
+      const fileName = `${customerId}/${Date.now()}.jpg`;
+      
+      // バケット名を 'customer-photos' に統一
+      const { error: uploadError } = await supabase.storage
+        .from('customer-photos')
+        .upload(fileName, file);
 
-  const methodStats = [
-    { name: 'Cash', value: sales.filter(s => s.payment_method === 'cash').length || 0 },
-    { name: 'Card', value: sales.filter(s => s.payment_method === 'card').length || 0 },
-  ];
+      if (uploadError) throw uploadError;
 
-  const COLORS = ['#6366f1', '#f43f5e', '#10b981', '#f59e0b'];
+      const { data: urlData } = supabase.storage.from('customer-photos').getPublicUrl(fileName);
+
+      // SQLスキーマに基づき 'visual_history' に保存
+      const { error: dbError } = await supabase.from('visual_history').insert([
+        { 
+          customer_id: customerId, 
+          image_url: urlData.publicUrl,
+          note: isUpdate ? '手書きメモあり' : ''
+        }
+      ]);
+
+      if (dbError) throw dbError;
+      fetchVisualHistory();
+      setEditingImageUrl(null);
+    } catch (err: any) {
+      alert("保存失敗: " + err.message);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const filteredRecords = records.filter(r => 
+    (r.note && r.note.includes(searchTerm)) || 
+    new Date(r.created_at).toLocaleDateString().includes(searchTerm)
+  );
 
   if (loading) return (
-    <div className="p-20 text-center font-black text-slate-400 animate-pulse">
-      ANALYZING BUSINESS DATA...
+    <div className="flex flex-col items-center justify-center p-20 text-slate-400">
+      <Loader2 className="animate-spin mb-4" />
+      <p className="text-[10px] font-black uppercase tracking-widest">Loading Records...</p>
     </div>
   );
 
-  const totalRevenue = sales.reduce((sum, s) => sum + s.total_amount, 0);
-
   return (
-    <div className="space-y-8 animate-in fade-in duration-700 pb-20">
-      {/* 概要カード */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm">
-          <div className="flex items-center gap-4 mb-4">
-            <div className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl"><DollarSign size={20}/></div>
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Revenue</span>
-          </div>
-          <div className="text-4xl font-black italic text-slate-900">¥{totalRevenue.toLocaleString()}</div>
+    <div className="max-w-7xl mx-auto space-y-8 animate-in fade-in duration-700 pb-20">
+      
+      {/* ヘッダー兼検索バー */}
+      <div className="flex flex-col md:flex-row gap-6 items-center justify-between bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100">
+        <div>
+          <h2 className="text-3xl font-black italic text-slate-900 uppercase tracking-tighter">
+            Visual <span className="text-indigo-600">Archives</span>
+          </h2>
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">
+            {customerName} 様のスタイル履歴
+          </p>
         </div>
-
-        <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm">
-          <div className="flex items-center gap-4 mb-4">
-            <div className="p-3 bg-rose-50 text-rose-600 rounded-2xl"><Users size={20}/></div>
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Appointments</span>
+        
+        <div className="flex gap-4 w-full md:w-auto">
+          <div className="relative flex-1 md:w-64">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+            <input 
+              type="text"
+              placeholder="日付やメモで検索..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-3 bg-slate-50 border-none rounded-xl text-xs font-bold focus:ring-2 focus:ring-indigo-500"
+            />
           </div>
-          {/* Propsで受け取った予約数を表示 */}
-          <div className="text-4xl font-black italic text-slate-900">{appointments.length}</div>
-        </div>
-
-        <div className="bg-slate-900 p-8 rounded-[2.5rem] shadow-xl text-white">
-          <div className="flex items-center gap-4 mb-4">
-            <div className="p-3 bg-white/10 text-white rounded-2xl"><TrendingUp size={20}/></div>
-            <span className="text-[10px] font-black text-white/40 uppercase tracking-widest">Growth Rate</span>
-          </div>
-          <div className="text-4xl font-black italic">+12.5%</div>
+          
+          <label className="cursor-pointer bg-slate-900 text-white px-6 py-3 rounded-xl font-black text-[10px] uppercase flex items-center gap-2 hover:bg-indigo-600 transition-all shadow-lg">
+            {isUploading ? <Loader2 className="animate-spin" size={16} /> : <Camera size={16} />}
+            新規撮影
+            <input type="file" className="hidden" accept="image/*" onChange={(e) => e.target.files?.[0] && handleUpload(e.target.files[0])} />
+          </label>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* メニュー別分析 */}
-        <div className="bg-white p-10 rounded-[3rem] border border-slate-100 shadow-sm">
-          <div className="flex items-center gap-3 mb-8">
-            <ShoppingBag className="text-indigo-600" size={24} />
-            <h4 className="font-black text-xl italic tracking-tighter uppercase text-slate-900">Service Pricing</h4>
-          </div>
-          <div className="h-[300px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={menuStats}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontWeight: 'bold', fontSize: 10}} />
-                <YAxis axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 10}} />
-                <Tooltip 
-                  cursor={{fill: '#f8fafc'}}
-                  contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}}
-                />
-                <Bar dataKey="value" radius={[10, 10, 0, 0]}>
-                  {menuStats.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        {/* 決済方法分析 */}
-        <div className="bg-white p-10 rounded-[3rem] border border-slate-100 shadow-sm">
-          <div className="flex items-center gap-3 mb-8">
-            <CreditCard className="text-rose-600" size={24} />
-            <h4 className="font-black text-xl italic tracking-tighter uppercase text-slate-900">Payment Ratio</h4>
-          </div>
-          <div className="h-[300px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={methodStats}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={60}
-                  outerRadius={90}
-                  paddingAngle={8}
-                  dataKey="value"
-                >
-                  {methodStats.map((entry, index) => (
-                    <Cell key={`cell-pie-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="flex justify-center gap-8 mt-4">
-            {methodStats.map((entry, index) => (
-              <div key={`legend-${entry.name}`} className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full" style={{backgroundColor: COLORS[index % COLORS.length]}} />
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{entry.name}</span>
+      {/* 履歴グリッド */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        {filteredRecords.map((record) => (
+          <div key={record.id} className="group bg-white rounded-[3rem] border border-slate-100 shadow-xl overflow-hidden hover:shadow-2xl transition-all flex flex-col relative">
+            
+            {/* 写真エリア */}
+            <div className="relative h-72 bg-slate-100 overflow-hidden">
+              <img src={record.image_url} alt="Style" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
+              
+              <div className="absolute top-6 left-6 bg-white/90 backdrop-blur px-4 py-2 rounded-xl flex items-center gap-2 shadow-sm">
+                <Calendar size={14} className="text-indigo-600" />
+                <span className="text-[10px] font-black text-slate-900">
+                  {new Date(record.created_at).toLocaleDateString('ja-JP')}
+                </span>
               </div>
-            ))}
+
+              {/* クイック編集ボタン */}
+              <button 
+                onClick={() => setEditingImageUrl(record.image_url)}
+                className="absolute bottom-6 right-6 w-12 h-12 bg-white text-slate-900 rounded-full flex items-center justify-center shadow-xl opacity-0 group-hover:opacity-100 transition-all hover:scale-110"
+              >
+                <Edit3 size={20} />
+              </button>
+            </div>
+
+            {/* コンテンツエリア */}
+            <div className="p-8">
+              <div className="bg-slate-50 rounded-[2rem] p-6 border border-slate-100">
+                <div className="flex items-start gap-3">
+                  <FileText size={16} className="text-slate-400 mt-1 shrink-0" />
+                  <p className="text-xs font-bold text-slate-600 leading-relaxed">
+                    {record.note || "メモはありません。写真をタップして赤ペンで記録を追加しましょう。"}
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
-        </div>
+        ))}
       </div>
+
+      {/* 赤ペン編集モーダル */}
+      {editingImageUrl && (
+        <VisualAnnotation 
+          imageUrl={editingImageUrl}
+          onClose={() => setEditingImageUrl(null)}
+          onSave={async (blob) => {
+            await handleUpload(blob, true);
+          }}
+        />
+      )}
+
+      {filteredRecords.length === 0 && (
+        <div className="py-32 text-center bg-white rounded-[4rem] border-4 border-dashed border-slate-50">
+          <ImageIcon size={48} className="mx-auto mb-4 text-slate-100" />
+          <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">No Visual Records Found</p>
+        </div>
+      )}
     </div>
   );
 };
+
+export default ChartGallery;

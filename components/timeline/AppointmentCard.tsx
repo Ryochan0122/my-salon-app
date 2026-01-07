@@ -8,13 +8,13 @@ interface Props {
   onPay: (app: Appointment) => void;
   onEdit: (app: Appointment) => void;
   onDelete: (id: string) => void;
-  onShowChart: (name: string) => void; // 追加
+  onShowChart: (name: string) => void;
 }
 
 export const AppointmentCard = ({ app, onPay, onEdit, onDelete, onShowChart }: Props) => {
-  const time = new Date(app.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const time = new Date(app.start_time).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
 
-  // メニュー別カラー判別
+  // メニュー別カラー判別（日本語メニュー名に対応）
   const getTheme = (menu: string) => {
     const m = menu.toLowerCase();
     if (m.includes('カット')) return { bar: 'bg-sky-500', bg: 'bg-sky-50', text: 'text-sky-600' };
@@ -47,26 +47,29 @@ export const AppointmentCard = ({ app, onPay, onEdit, onDelete, onShowChart }: P
 
       <div className="flex-1 min-w-0 mt-1 cursor-pointer z-10" onClick={() => onEdit(app)}>
         <h4 className="font-black text-slate-900 text-xs leading-tight truncate">{app.customer_name} 様</h4>
-        <p className={`${theme.text} font-bold text-[8px] uppercase tracking-wider truncate`}>{app.menu_name}</p>
+        <p className={`${theme.text} font-bold text-[8px] tracking-wider truncate`}>{app.menu_name}</p>
       </div>
 
       <div className="absolute bottom-2 right-2 flex gap-1 z-20">
-        {/* カルテボタン */}
+        {/* 顧客カルテ履歴ボタン */}
         <button 
+          title="カルテを表示"
           onClick={(e) => { e.stopPropagation(); onShowChart(app.customer_name); }}
           className="p-1.5 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition-all shadow-sm"
         >
           <FileText size={12} />
         </button>
-        {/* 会計ボタン */}
+        {/* 会計処理ボタン */}
         <button 
+          title="会計に進む"
           onClick={(e) => { e.stopPropagation(); onPay(app); }}
           className="p-1.5 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition-all shadow-sm"
         >
           <DollarSign size={12} />
         </button>
-        {/* 削除ボタン */}
+        {/* 予約削除ボタン */}
         <button 
+          title="予約を削除"
           onClick={(e) => { e.stopPropagation(); onDelete(app.id); }}
           className="p-1.5 bg-rose-500 text-white rounded-lg hover:bg-rose-600 transition-all shadow-sm"
         >

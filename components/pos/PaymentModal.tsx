@@ -5,24 +5,34 @@ import { Appointment, Service, Product } from '@/types';
 import { 
   X, Plus, Minus, ShoppingCart, 
   CreditCard, Banknote, Smartphone, Receipt,
-  Scissors, Package, Trash2, FileText
+  Scissors, Package, Trash2, FileText, Copy, Check
 } from 'lucide-react';
 
 interface Props {
   app: Appointment;
   services: Service[];
   onClose: () => void;
-  // 引数に memo を追加
-  onConfirm: (total: number, net: number, tax: number, method: string, cart: any[], memo: string) => void;
+  onConfirm: (
+    total: number, 
+    net: number, 
+    tax: number, 
+    method: string, 
+    cart: any[], 
+    memo: string
+  ) => void; 
 }
 
 export const PaymentModal = ({ app, services, onClose, onConfirm }: Props) => {
   const [products, setProducts] = useState<Product[]>([]);
   const [cart, setCart] = useState<{id: string, name: string, price: number, type: 'service' | 'product', qty: number}[]>([]);
   const [paymentMethod, setPaymentMethod] = useState('cash');
-  const [memo, setMemo] = useState(''); // 👈 施術メモ用のステートを追加
+  const [memo, setMemo] = useState('');
+  
+  // LINEメッセージ生成用ステート
+  const [showCopyArea, setShowCopyArea] = useState(false);
+  const [generatedText, setGeneratedText] = useState('');
+  const [copied, setCopied] = useState(false);
 
-  // 初期化：予約されていた技術メニューをカートに入れる
   useEffect(() => {
     const initialService = services.find(s => s.name === app.menu_name);
     if (initialService) {
@@ -60,9 +70,43 @@ export const PaymentModal = ({ app, services, onClose, onConfirm }: Props) => {
   const taxAmount = Math.round(totalAmount - (totalAmount / 1.1));
   const netAmount = totalAmount - taxAmount;
 
-  const handleComplete = () => {
-    // 合計、税抜き、消費税、支払い方法、カート中身、そして「メモ」を渡す
+  // LINEメッセージ生成ロジック
+  const generateMessage = () => {
+    const menuList = cart.map(item => `・${item.name}`).join('\n');
+    const nextVisit = new Date();
+    nextVisit.setDate(nextVisit.getDate() + 45); // 45日後を目安
+    const nextMonth = nextVisit.getMonth() + 1;
+    const nextDay = nextVisit.getDate();
+
+    const text = `${app.customer_name} 様
+
+本日は AURA STUDIO へご来店いただき、誠にありがとうございました！
+
+【本日のメニュー】
+${menuList}
+合計金額：¥${totalAmount.toLocaleString()}-
+
+【スタイリストより】
+${memo || "本日の仕上がり、とてもお似合いでした！"}
+
+【次回来店の目安】
+スタイルを綺麗に保つためには、約1.5ヶ月後の「${nextMonth}月${nextDay}日」頃のメンテナンスがおすすめです。
+
+またお会いできるのを楽しみにしております！
+AURA STUDIO`;
+    
+    setGeneratedText(text);
+    setShowCopyArea(true);
+  };
+
+  const handleFinalize = () => {
     onConfirm(totalAmount, netAmount, taxAmount, paymentMethod, cart, memo);
+  };
+
+  const copyToClipboard = async () => {
+    await navigator.clipboard.writeText(generatedText);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   return (
@@ -71,17 +115,17 @@ export const PaymentModal = ({ app, services, onClose, onConfirm }: Props) => {
       
       <div className="relative w-full max-w-6xl bg-white rounded-[3.5rem] shadow-2xl overflow-hidden flex flex-col md:flex-row h-[90vh]">
         
-        {/* 左側：商品・メニュー・メモ入力 */}
+        {/* 左側：選択エリア */}
         <div className="flex-1 p-8 overflow-y-auto bg-slate-50/50 border-r border-slate-100 custom-scrollbar">
           <div className="flex items-center gap-3 mb-8">
             <ShoppingCart className="text-indigo-600" />
-            <h3 className="text-xl font-black italic uppercase tracking-tighter">Add Items & Notes</h3>
+            <h3 className="text-xl font-black italic uppercase tracking-tighter">伝票の作成 ＆ 施術メモ</h3>
           </div>
 
           <div className="space-y-8">
             {/* 技術メニュー */}
             <div>
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Services (技術)</p>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">技術メニュー</p>
               <div className="grid grid-cols-2 gap-3">
                 {services.map(s => (
                   <button key={s.id} onClick={() => addToCart(s, 'service')} className="p-4 bg-white rounded-2xl border border-slate-200 text-left hover:border-indigo-500 transition-all group">
@@ -92,9 +136,9 @@ export const PaymentModal = ({ app, services, onClose, onConfirm }: Props) => {
               </div>
             </div>
 
-            {/* 物品メニュー */}
+            {/* 店販商品 */}
             <div>
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Retail Products (店販)</p>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">店販商品</p>
               <div className="grid grid-cols-2 gap-3">
                 {products.map(p => (
                   <button key={p.id} onClick={() => addToCart(p, 'product')} className="p-4 bg-white rounded-2xl border border-slate-200 text-left hover:border-emerald-500 transition-all">
@@ -106,11 +150,11 @@ export const PaymentModal = ({ app, services, onClose, onConfirm }: Props) => {
               </div>
             </div>
 
-            {/* 施術メモ入力欄 👈 これを追加 */}
+            {/* 施術メモ */}
             <div className="pt-4">
               <div className="flex items-center gap-2 mb-4">
                 <FileText size={14} className="text-amber-500" />
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Treatment Notes (施術メモ)</p>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">施術メモ・カルテ記録</p>
               </div>
               <textarea 
                 value={memo}
@@ -122,12 +166,12 @@ export const PaymentModal = ({ app, services, onClose, onConfirm }: Props) => {
           </div>
         </div>
 
-        {/* 右側：会計サマリー */}
+        {/* 右側：サマリーエリア */}
         <div className="w-full md:w-[400px] p-8 flex flex-col bg-white">
           <div className="flex justify-between items-start mb-8">
             <div>
-              <h2 className="text-3xl font-black italic tracking-tighter text-slate-900 uppercase">Checkout</h2>
-              <p className="text-slate-400 text-[10px] font-black uppercase mt-1">Customer: {app.customer_name}</p>
+              <h2 className="text-3xl font-black italic tracking-tighter text-slate-900 uppercase">会計確認</h2>
+              <p className="text-slate-400 text-[10px] font-black uppercase mt-1">お客様: {app.customer_name} 様</p>
             </div>
             <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full transition-colors"><X/></button>
           </div>
@@ -151,11 +195,27 @@ export const PaymentModal = ({ app, services, onClose, onConfirm }: Props) => {
             ))}
           </div>
 
+          {/* LINEメッセージコピーエリア（表示フラグ時のみ） */}
+          {showCopyArea && (
+            <div className="mb-6 bg-indigo-50 p-4 rounded-3xl border-2 border-indigo-100 animate-in zoom-in-95">
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-[9px] font-black text-indigo-600 uppercase">LINE After Message</span>
+                <button onClick={copyToClipboard} className="text-indigo-600 hover:text-indigo-800 transition-colors">
+                  {copied ? <Check size={16}/> : <Copy size={16}/>}
+                </button>
+              </div>
+              <pre className="text-[10px] font-bold text-slate-600 leading-tight h-24 overflow-y-auto whitespace-pre-wrap">
+                {generatedText}
+              </pre>
+            </div>
+          )}
+
+          {/* 支払い方法選択 */}
           <div className="grid grid-cols-3 gap-2 mb-8">
             {[
               { id: 'cash', icon: Banknote, label: '現 金' },
               { id: 'card', icon: CreditCard, label: 'カード' },
-              { id: 'qr', icon: Smartphone, label: 'QR決済' }
+              { id: 'qr', icon: Smartphone, label: 'QR・他' }
             ].map(m => (
               <button 
                 key={m.id} 
@@ -163,26 +223,27 @@ export const PaymentModal = ({ app, services, onClose, onConfirm }: Props) => {
                 className={`flex flex-col items-center gap-2 p-3 rounded-2xl border-2 transition-all ${paymentMethod === m.id ? 'border-indigo-600 bg-indigo-50 text-indigo-600' : 'border-slate-50 text-slate-400'}`}
               >
                 <m.icon size={20}/>
-                <span className="text-[9px] font-black uppercase">{m.label}</span>
+                <span className="text-[9px] font-black">{m.label}</span>
               </button>
             ))}
           </div>
 
+          {/* 合計金額 */}
           <div className="bg-slate-900 rounded-[2rem] p-8 text-white mb-6 shadow-xl relative overflow-hidden">
             <div className="relative z-10">
               <div className="flex justify-between items-center mb-1">
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Amount</span>
-                <span className="text-[10px] font-black text-indigo-400 uppercase">10% Tax Inc.</span>
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">お支払い合計</span>
+                <span className="text-[10px] font-black text-indigo-400 uppercase">(10% 税込)</span>
               </div>
               <div className="text-4xl font-black italic tracking-tighter mb-4">¥{totalAmount.toLocaleString()}</div>
               
               <div className="flex justify-between border-t border-white/10 pt-4">
                 <div className="text-center">
-                  <div className="text-[8px] text-slate-500 uppercase font-black">Net (税抜)</div>
+                  <div className="text-[8px] text-slate-500 uppercase font-black">税抜金額</div>
                   <div className="text-xs font-bold font-mono">¥{netAmount.toLocaleString()}</div>
                 </div>
                 <div className="text-center">
-                  <div className="text-[8px] text-slate-500 uppercase font-black">Tax (消費税)</div>
+                  <div className="text-[8px] text-slate-500 uppercase font-black">内消費税</div>
                   <div className="text-xs font-bold font-mono text-indigo-400">¥{taxAmount.toLocaleString()}</div>
                 </div>
               </div>
@@ -190,13 +251,23 @@ export const PaymentModal = ({ app, services, onClose, onConfirm }: Props) => {
             <Receipt className="absolute -right-4 -bottom-4 w-32 h-32 text-white/5 -rotate-12" />
           </div>
 
-          <button 
-            onClick={handleComplete}
-            disabled={cart.length === 0}
-            className="w-full py-6 bg-indigo-600 text-white rounded-[2rem] font-black text-lg uppercase shadow-2xl shadow-indigo-200 hover:bg-slate-900 transition-all active:scale-95 disabled:opacity-50"
-          >
-            Complete Payment
-          </button>
+          {/* ボタンエリアの出し分け */}
+          {!showCopyArea ? (
+            <button 
+              onClick={generateMessage}
+              disabled={cart.length === 0}
+              className="w-full py-6 bg-indigo-600 text-white rounded-[2rem] font-black text-lg uppercase shadow-2xl shadow-indigo-200 hover:bg-slate-900 transition-all active:scale-95 disabled:opacity-50"
+            >
+              メッセージを生成して完了
+            </button>
+          ) : (
+            <button 
+              onClick={handleFinalize}
+              className="w-full py-6 bg-slate-900 text-white rounded-[2rem] font-black text-lg uppercase shadow-2xl hover:bg-indigo-700 transition-all active:scale-95"
+            >
+              会計を確定して閉じる
+            </button>
+          )}
         </div>
       </div>
     </div>

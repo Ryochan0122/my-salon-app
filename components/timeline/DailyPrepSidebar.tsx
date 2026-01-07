@@ -29,8 +29,8 @@ export const DailyPrepSidebar = ({ appointments }: { appointments: Appointment[]
   return (
     <div className="w-80 flex-none bg-white rounded-[3rem] shadow-xl border border-slate-100 flex flex-col h-[80vh] overflow-hidden hidden xl:flex">
       <div className="p-8 border-b border-slate-50">
-        <h3 className="text-xl font-black italic tracking-tighter text-slate-900 uppercase">Daily Prep</h3>
-        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">本日のカルテ予習</p>
+        <h3 className="text-xl font-black italic tracking-tighter text-slate-900 uppercase">本日のカルテ予習</h3>
+        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">Daily Preparation</p>
       </div>
       <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar bg-slate-50/30">
         {prepData.length > 0 ? prepData.map((app) => (
@@ -40,24 +40,24 @@ export const DailyPrepSidebar = ({ appointments }: { appointments: Appointment[]
                 {app.start_time.slice(11, 16)}
               </div>
               <span className="text-[9px] font-bold text-slate-300 uppercase">
-                {app.last_visit ? new Date(app.last_visit).toLocaleDateString() : 'New Client'}
+                {app.last_visit ? new Date(app.last_visit).toLocaleDateString() : 'ご新規様'}
               </span>
             </div>
-            <h4 className="font-black text-slate-900 text-sm mb-1">{app.customer_name}</h4>
+            <h4 className="font-black text-slate-900 text-sm mb-1">{app.customer_name} 様</h4>
             <div className="bg-slate-50 p-4 rounded-2xl border border-slate-50">
               <div className="flex items-center gap-1 opacity-30 mb-1">
                 <History size={10} />
-                <span className="text-[8px] font-black uppercase">Last Note</span>
+                <span className="text-[8px] font-black uppercase">前回のメモ</span>
               </div>
               <p className="text-[10px] font-bold text-slate-600 italic leading-relaxed">
-                {app.last_memo ? `"${app.last_memo}"` : "メモなし"}
+                {app.last_memo ? `"${app.last_memo}"` : "過去のメモはありません"}
               </p>
             </div>
           </div>
         )) : (
           <div className="h-full flex flex-col items-center justify-center text-slate-200">
             <User size={32} className="opacity-10 mb-2" />
-            <p className="text-[9px] font-black uppercase tracking-widest">No Bookings</p>
+            <p className="text-[9px] font-black uppercase tracking-widest">本日の予約はありません</p>
           </div>
         )}
       </div>

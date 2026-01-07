@@ -33,9 +33,10 @@ export const CustomerDetailModal = ({ customer, onClose }: Props) => {
     <div className="fixed inset-0 z-[150] flex items-center justify-end p-4 sm:p-6 bg-slate-900/60 backdrop-blur-sm">
       <div className="absolute inset-0" onClick={onClose} />
 
+      {/* スライドインするカルテ本体 */}
       <div className="relative bg-white w-full max-w-2xl h-full rounded-[3rem] shadow-2xl overflow-hidden flex flex-col animate-in slide-in-from-right duration-500">
         
-        {/* Header */}
+        {/* ヘッダーエリア：顧客の基本統計 */}
         <div className="bg-slate-900 p-10 text-white relative overflow-hidden">
           <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/20 rounded-full blur-3xl -mr-20 -mt-20" />
           
@@ -50,67 +51,66 @@ export const CustomerDetailModal = ({ customer, onClose }: Props) => {
             <div className="flex-1">
               <div className="flex items-center gap-3 mb-2">
                 <span className="px-3 py-1 bg-white/10 rounded-full text-[10px] font-black uppercase tracking-widest text-indigo-300 border border-white/10">
-                  {history.length >= 5 ? '👑 VIP Member' : 'Regular Member'}
+                  {history.length >= 5 ? '👑 VIP会員' : 'レギュラー会員'}
                 </span>
               </div>
               <h2 className="text-4xl font-black italic tracking-tighter mb-1">{customer.name} 様</h2>
-              {/* 修正箇所: customer.name_kana ではなく customer.kana を参照 */}
               <p className="text-white/40 text-xs font-bold uppercase tracking-[0.2em]">
-                {customer.kana || 'NO KANA DATA'}
+                {customer.kana || 'カナデータなし'}
               </p>
             </div>
           </div>
 
           <div className="grid grid-cols-3 gap-4 mt-10 relative z-10">
             <div className="bg-white/5 rounded-2xl p-4 border border-white/5 text-center">
-              <p className="text-[9px] font-black text-white/30 uppercase tracking-widest mb-1">Total Visits</p>
+              <p className="text-[9px] font-black text-white/30 uppercase tracking-widest mb-1">総来店回数</p>
               <p className="text-2xl font-black italic">{history.length}<span className="text-xs ml-1 opacity-40">回</span></p>
             </div>
             <div className="bg-white/5 rounded-2xl p-4 border border-white/5 text-center">
-              <p className="text-[9px] font-black text-white/30 uppercase tracking-widest mb-1">Total Spent</p>
+              <p className="text-[9px] font-black text-white/30 uppercase tracking-widest mb-1">総利用金額</p>
               <p className="text-2xl font-black italic">¥{totalSpent.toLocaleString()}</p>
             </div>
             <div className="bg-white/5 rounded-2xl p-4 border border-white/5 text-center">
-              <p className="text-[9px] font-black text-white/30 uppercase tracking-widest mb-1">Last Visit</p>
+              <p className="text-[9px] font-black text-white/30 uppercase tracking-widest mb-1">最終来店日</p>
               <p className="text-xs font-black italic mt-2">{lastVisit ? lastVisit.toLocaleDateString('ja-JP') : '---'}</p>
             </div>
           </div>
         </div>
 
-        {/* Scrollable Content */}
+        {/* コンテンツエリア */}
         <div className="flex-1 overflow-y-auto custom-scrollbar p-10 space-y-10">
           
-          {/* Basic Info */}
+          {/* 基本情報 */}
           <section>
             <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mb-6 flex items-center gap-2">
-              <User size={14} className="text-indigo-500" /> Basic Information
+              <User size={14} className="text-indigo-500" /> 顧客基本情報
             </h3>
             <div className="grid grid-cols-2 gap-6">
               <div className="flex items-center gap-4 p-5 bg-slate-50 rounded-[1.5rem] border border-slate-100">
                 <Phone className="text-slate-300" size={18} />
                 <div>
-                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Phone</p>
+                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">電話番号</p>
                   <p className="text-sm font-bold text-slate-700">{customer.tel || '未登録'}</p>
                 </div>
               </div>
               <div className="flex items-center gap-4 p-5 bg-slate-50 rounded-[1.5rem] border border-slate-100">
                 <Calendar className="text-slate-300" size={18} />
                 <div>
-                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Birthday</p>
+                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">お誕生日</p>
                   <p className="text-sm font-bold text-slate-700">{customer.birth_date || '未登録'}</p>
                 </div>
               </div>
             </div>
           </section>
 
-          {/* History Timeline */}
+          {/* 施術履歴タイムライン */}
           <section>
             <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mb-8 flex items-center gap-2">
-              <Clock size={14} className="text-indigo-500" /> Treatment History
+              <Clock size={14} className="text-indigo-500" /> 施術履歴・カルテ記録
             </h3>
             
             {loading ? (
-              <div className="py-10 text-center animate-pulse text-slate-300 font-black tracking-widest">LOADING RECORDS...</div>
+              <div className="py-10 text-center animate-pulse text-slate-300 font-black tracking-widest">データを読み込み中...</div>
             ) : history.length > 0 ? (
               <div className="space-y-8 relative before:absolute before:left-[19px] before:top-2 before:bottom-0 before:w-px before:bg-slate-100">
                 {history.map((record) => (
@@ -131,7 +131,7 @@ export const CustomerDetailModal = ({ customer, onClose }: Props) => {
                       </div>
                       <div className="bg-slate-50/80 p-5 rounded-2xl italic text-sm text-slate-500 leading-relaxed border border-slate-50">
                         <MessageSquare size={14} className="inline mr-2 opacity-30" />
-                        {record.memo || '施術メモなし'}
+                        {record.memo || 'この時のメモはありません'}
                       </div>
                     </div>
                   </div>
@@ -139,22 +139,22 @@ export const CustomerDetailModal = ({ customer, onClose }: Props) => {
               </div>
             ) : (
               <div className="text-center py-20 bg-slate-50 rounded-[3rem] border border-dashed border-slate-200">
-                <p className="text-slate-300 font-black uppercase tracking-widest text-xs">No records available</p>
+                <p className="text-slate-300 font-black uppercase tracking-widest text-xs">履歴データがありません</p>
               </div>
             )}
           </section>
         </div>
 
-        {/* Footer */}
+        {/* フッターアクション */}
         <div className="p-8 bg-white border-t border-slate-50 flex gap-4">
           <button className="flex-[2] py-5 bg-slate-900 text-white rounded-[1.5rem] font-black text-xs uppercase tracking-[0.2em] hover:bg-indigo-600 transition-all shadow-2xl shadow-slate-200 active:scale-95">
-            Edit Detailed Profile
+            顧客プロフィールの編集
           </button>
           <button 
             onClick={onClose}
             className="flex-1 py-5 bg-slate-100 text-slate-500 rounded-[1.5rem] font-black text-xs uppercase tracking-[0.2em] hover:bg-slate-200 transition-all active:scale-95"
           >
-            Close
+            閉じる
           </button>
         </div>
       </div>
