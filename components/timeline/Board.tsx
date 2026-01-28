@@ -1,14 +1,24 @@
 "use client";
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Staff, Appointment } from '@/types';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { Staff, Appointment, Sale, Service } from '@/types'; // SaleとServiceを追加
 import { StaffRow } from './StaffRow';
-import { Plus, ChevronLeft, ChevronRight, Clock, AlertCircle } from 'lucide-react';
+import { 
+  Plus, 
+  ChevronLeft, 
+  ChevronRight, 
+  Clock, 
+  AlertCircle,
+  Wallet,      // 売上アイコン
+  TrendingUp   // 見込みアイコン
+} from 'lucide-react';
 import { DailyPrepSidebar } from './DailyPrepSidebar';
 import { supabase } from '@/lib/supabase';
 
 interface BoardProps {
   staff: Staff[];
   appointments: Appointment[];
+  sales?: Sale[];    // 売上計算用に追加
+  services?: Service[]; // 価格取得用に追加
   onRefresh: () => void;
   onAdd: () => void;
   onPay: (app: Appointment) => void;
@@ -21,6 +31,8 @@ interface BoardProps {
 export const Board = ({ 
   staff, 
   appointments, 
+  sales = [],
+  services = [],
   onRefresh, 
   onAdd, 
   onPay, 
@@ -41,14 +53,38 @@ export const Board = ({
   const hoursCount = 13;
   const hourWidth = 200;
 
-  // 公休データの取得
+  // --- 売上集計ロジック (既存のUIを壊さずデータのみ追加) ---
+  const dailyStats = useMemo(() => {
+    const isSameDay = (d1: Date, d2: string) => 
+      new Date(d1).toDateString() === new Date(d2).toDateString();
+
+    const confirmed = sales
+      .filter(s => isSameDay(selectedDate, s.created_at))
+      .reduce((sum, s) => sum + (Number(s.total_amount) || 0), 0);
+
+    const expected = appointments
+      .filter(a => isSameDay(selectedDate, a.start_time))
+      .filter(a => !sales.some(s => s.appointment_id === a.id))
+      .reduce((sum, a) => {
+        const service = services.find(s => s.name === a.menu_name);
+        return sum + (service?.price || 0);
+      }, 0);
+
+    return { confirmed, total: confirmed + expected };
+  }, [selectedDate, sales, appointments, services]);
+
+  // 公休データの取得 (404エラーガード付き)
   const fetchHolidays = useCallback(async () => {
+    const shopId = localStorage.getItem('aura_shop_id');
+    if (!shopId) return; // shop_idがない時は通信しない
+
     const dateStr = selectedDate.toISOString().split('T')[0];
     const { data } = await supabase
       .from('staff_schedules')
       .select('staff_id')
       .eq('date', dateStr)
-      .eq('is_holiday', true);
+      .eq('is_holiday', true)
+      .eq('shop_id', shopId);
     
     setHolidays(data?.map(h => h.staff_id) || []);
   }, [selectedDate]);
@@ -107,15 +143,12 @@ export const Board = ({
     );
   });
 
-  // 重複チェック付きの移動ハンドラー
   const handleMoveAppointment = async (appId: string, newStartTime: string, newStaffId: string) => {
-    // 1. 公休チェック
     if (holidays.includes(newStaffId)) {
       alert("選択されたスタッフはこの日公休です。");
       return;
     }
 
-    // 2. 重複チェック
     const hasConflict = filteredApps.some(app => {
       if (app.id === appId || app.staff_id !== newStaffId) return false;
       const newStart = new Date(newStartTime).getTime();
@@ -177,6 +210,18 @@ export const Board = ({
               </button>
             );
           })}
+        </div>
+
+        {/* --- 売上パネルを追加 --- */}
+        <div className="grid grid-cols-2 gap-3 mb-6">
+          <div className="bg-slate-900 p-4 rounded-[1.5rem] text-white">
+            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5"><Wallet size={10} /> 確定売上</p>
+            <p className="text-lg font-black italic text-indigo-400">¥{dailyStats.confirmed.toLocaleString()}</p>
+          </div>
+          <div className="bg-slate-50 p-4 rounded-[1.5rem] border border-slate-100">
+            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5"><TrendingUp size={10} /> 本日見込</p>
+            <p className="text-lg font-black italic text-slate-900">¥{dailyStats.total.toLocaleString()}</p>
+          </div>
         </div>
 
         <button onClick={onAdd} className="w-full py-5 bg-slate-900 text-white rounded-2xl font-black text-sm flex items-center justify-center gap-2 hover:bg-indigo-600 transition-all shadow-xl shadow-slate-200">

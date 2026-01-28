@@ -1,5 +1,12 @@
+export interface Shop {
+  id: string;
+  name: string;
+  created_at: string;
+}
+
 export interface Staff {
   id: string;
+  shop_id: string; // 👈 追加
   name: string;
   role?: string;
   created_at?: string;
@@ -7,6 +14,7 @@ export interface Staff {
 
 export interface Service {
   id: string;
+  shop_id: string; // 👈 追加
   name: string;
   price: number;
   price_student?: number;
@@ -15,22 +23,24 @@ export interface Service {
   tax_rate: number;
 }
 
-// 👈 customer_id を追加
 export interface Appointment {
   id: string;
-  customer_id?: string;    // 追加：顧客マスタとの紐付け用
+  shop_id: string;
+  customer_id?: string;
   customer_name: string;
   staff_id: string;
   menu_name: string;
   start_time: string;
   end_time: string;
+  duration: number; // 👈 追加（これがないとエラーになります）
+  status?: 'confirmed' | 'completed' | 'cancelled';
   staff?: { name: string };
 }
 
-// 👈 customer_id と memo を追加
 export interface Sale {
   id: string;
-  customer_id?: string;    // 追加：どの顧客の売上か
+  shop_id: string; // 👈 追加
+  customer_id?: string;
   appointment_id?: string;
   customer_name: string; 
   staff_id: string;
@@ -39,13 +49,14 @@ export interface Sale {
   net_amount: number;
   tax_amount: number;
   payment_method: string;
-  memo?: string;           // 追加：施術メモ（カラー配合など）
+  memo?: string;
   created_at: string;
   staff?: { name: string };
 }
 
 export interface Product {
   id: string;
+  shop_id: string; // 👈 追加
   name: string;
   price: number;
   stock: number;
@@ -54,9 +65,9 @@ export interface Product {
   created_at?: string;
 }
 
-// 👈 顧客マスタ自体の型も定義しておくと管理画面（CustomerManager）で役立ちます
 export interface Customer {
   id: string;
+  shop_id: string; // 👈 追加
   name: string;
   kana?: string;
   tel?: string;
@@ -68,12 +79,13 @@ export interface Customer {
   created_at: string;
 }
 
-export interface CustomerChart {
+// SQLのテーブル名 visual_history に合わせるのがベストです
+export interface VisualHistory {
   id: string;
-  customer_id?: string;    // 追加
-  customer_name: string;
-  memo: string;
-  image_url?: string;
-  created_at: string;
+  shop_id: string; // 👈 追加
+  customer_id: string;
   appointment_id?: string;
+  image_url: string;
+  note?: string;
+  created_at: string;
 }
