@@ -4,14 +4,16 @@ import { Sale } from '@/types';
 import { 
   TrendingUp, BarChart3, PieChart, Download, 
   Calendar as CalendarIcon, Scissors, ShoppingBag, 
-  CreditCard, Banknote, Users, Target, Rocket, Award
+  CreditCard, Banknote, Users, Target, Rocket, Award,
+  RotateCcw, Trash2
 } from 'lucide-react';
 
 interface Props {
   sales: Sale[];
+  onRevert?: (sale: Sale) => void; // 会計取り消し用のプロップスを追加
 }
 
-export const SalesView = ({ sales }: Props) => {
+export const SalesView = ({ sales, onRevert }: Props) => {
   const [viewMode, setViewMode] = useState<'today' | 'month' | 'year' | 'all'>('month');
 
   const stats = useMemo(() => {
@@ -106,7 +108,7 @@ export const SalesView = ({ sales }: Props) => {
       {/* 3. 日別レポート & 取引ログ */}
       <div className="grid grid-cols-12 gap-8">
         
-        {/* 日別売上（左：確定申告・分析用） */}
+        {/* 日別売上 */}
         <div className="col-span-12 lg:col-span-5 bg-white rounded-[3.5rem] border border-slate-100 shadow-xl overflow-hidden">
           <div className="p-10 border-b border-slate-50 flex justify-between items-center">
             <h4 className="text-lg font-black italic uppercase tracking-tighter flex items-center gap-3">
@@ -133,7 +135,7 @@ export const SalesView = ({ sales }: Props) => {
           </div>
         </div>
 
-        {/* 取引ログ（右：詳細確認用） */}
+        {/* 取引ログ */}
         <div className="col-span-12 lg:col-span-7 bg-white rounded-[3.5rem] border border-slate-100 shadow-xl overflow-hidden">
           <div className="p-10 border-b border-slate-50">
             <h4 className="text-lg font-black italic uppercase tracking-tighter flex items-center gap-3">
@@ -144,19 +146,40 @@ export const SalesView = ({ sales }: Props) => {
             <table className="w-full text-left">
               <tbody className="divide-y divide-slate-50">
                 {stats.filteredSales.map((sale) => (
-                  <tr key={sale.id} className="hover:bg-slate-50/80 transition-colors">
+                  <tr key={sale.id} className="hover:bg-slate-50/80 transition-colors group">
                     <td className="px-8 py-5">
                       <div className="text-[10px] text-slate-400 font-bold">{new Date(sale.created_at).toLocaleDateString('ja-JP')}</div>
                       <div className="text-xs font-black text-slate-900">{sale.customer_name} 様</div>
                     </td>
                     <td className="px-8 py-5">
                       <div className="text-[10px] text-indigo-600 font-black uppercase">{sale.menu_name}</div>
+                      <div className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">{sale.payment_method}</div>
                     </td>
-                    <td className="px-8 py-5 text-right font-black italic text-slate-900">
-                      ¥{sale.total_amount.toLocaleString()}
+                    <td className="px-8 py-5 text-right">
+                      <div className="flex items-center justify-end gap-6">
+                        <span className="font-black italic text-slate-900">¥{sale.total_amount.toLocaleString()}</span>
+                        
+                        {/* 取り消しアクション：忙しい時に間違えたらここから予約に戻す */}
+                        {onRevert && (
+                          <button 
+                            onClick={() => onRevert(sale)}
+                            className="opacity-0 group-hover:opacity-100 flex items-center gap-1 px-3 py-1.5 bg-rose-50 text-rose-600 rounded-xl text-[9px] font-black uppercase tracking-tighter hover:bg-rose-100 transition-all active:scale-95"
+                            title="会計を取り消して予約に戻す"
+                          >
+                            <RotateCcw size={12} /> 取消
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
+                {stats.filteredSales.length === 0 && (
+                  <tr>
+                    <td colSpan={3} className="px-8 py-20 text-center">
+                      <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">該当するデータがありません</p>
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
