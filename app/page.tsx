@@ -89,14 +89,14 @@ export default function Home() {
     await fetchAllData(shopId);
   };
 
-  const initFromUserId = async (userId: string) => {
+   const initFromUserId = async (userId: string) => {
     // 同じユーザーIDで既に初期化済みならスキップ
     if (initializedUserRef.current === userId) {
       console.log('⏭️ 既に初期化済みのためスキップ:', userId);
+      setInitialized(true);
       return;
     }
     initializedUserRef.current = userId;
-
     try {
       const cachedShopId = localStorage.getItem(SHOP_ID_KEY);
       const cachedUserId = localStorage.getItem(USER_ID_KEY);
