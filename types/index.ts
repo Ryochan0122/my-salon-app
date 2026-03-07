@@ -6,7 +6,7 @@ export interface Shop {
 
 export interface Staff {
   id: string;
-  shop_id: string; // 👈 追加
+  shop_id: string;
   name: string;
   role?: string;
   created_at?: string;
@@ -14,7 +14,7 @@ export interface Staff {
 
 export interface Service {
   id: string;
-  shop_id: string; // 👈 追加
+  shop_id: string;
   name: string;
   price: number;
   price_student?: number;
@@ -32,14 +32,15 @@ export interface Appointment {
   menu_name: string;
   start_time: string;
   end_time: string;
-  duration: number; // 👈 追加（これがないとエラーになります）
-  status?: 'confirmed' | 'completed' | 'cancelled';
+  duration: number;
+  status?: 'booked' | 'confirmed' | 'completed' | 'cancelled'; // bookedを追加
+  memo?: string; // 👈 現場に必須のこれ！追加
   staff?: { name: string };
 }
 
 export interface Sale {
   id: string;
-  shop_id: string; // 👈 追加
+  shop_id: string;
   customer_id?: string;
   appointment_id?: string;
   customer_name: string; 
@@ -56,7 +57,7 @@ export interface Sale {
 
 export interface Product {
   id: string;
-  shop_id: string; // 👈 追加
+  shop_id: string;
   name: string;
   price: number;
   stock: number;
@@ -67,7 +68,7 @@ export interface Product {
 
 export interface Customer {
   id: string;
-  shop_id: string; // 👈 追加
+  shop_id: string;
   name: string;
   kana?: string;
   tel?: string;
@@ -79,10 +80,9 @@ export interface Customer {
   created_at: string;
 }
 
-// SQLのテーブル名 visual_history に合わせるのがベストです
 export interface VisualHistory {
   id: string;
-  shop_id: string; // 👈 追加
+  shop_id: string;
   customer_id: string;
   appointment_id?: string;
   image_url: string;
