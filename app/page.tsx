@@ -44,8 +44,10 @@ const EmptyState = ({ title, desc, icon: Icon, action, label, secondaryAction }:
   </div>
 );
 
+const SHOP_ID_KEY = 'aura_shop_id';
+const USER_ID_KEY = 'aura_user_id';
+
 export default function Home() {
-  const sessionRef = useRef<any>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [initialized, setInitialized] = useState(false);
   const [view, setView] = useState('menu');
@@ -53,7 +55,6 @@ export default function Home() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [sales, setSales] = useState<Sale[]>([]);
   const [services, setServices] = useState<Service[]>([]);
-
   const shopIdRef = useRef<string | null>(null);
 
   const [editingApp, setEditingApp] = useState<any>(null);
@@ -62,7 +63,7 @@ export default function Home() {
   const [selectedCustomer, setSelectedCustomer] = useState<string | null>(null);
   const [addModalInitialData, setAddModalInitialData] = useState<{ staffId?: string; date?: Date; time?: string } | null>(null);
 
-  const getShopIdSafe = () => shopIdRef.current || localStorage.getItem('aura_shop_id');
+  const getShopId = () => shopIdRef.current || localStorage.getItem(SHOP_ID_KEY);
 
   const fetchAllData = async (shopId: string) => {
     try {
@@ -82,21 +83,33 @@ export default function Home() {
   };
 
   const refreshData = async () => {
-    const shopId = getShopIdSafe();
+    const shopId = getShopId();
     if (!shopId) return;
     await fetchAllData(shopId);
   };
 
   const initFromUserId = async (userId: string) => {
     try {
-      console.log('initFromUserId start:', userId);
+      // まずlocalStorageにshopIdがあればそれを使う
+      const cachedShopId = localStorage.getItem(SHOP_ID_KEY);
+      const cachedUserId = localStorage.getItem(USER_ID_KEY);
+
+      if (cachedShopId && cachedUserId === userId) {
+        console.log('キャッシュからshopId復元:', cachedShopId);
+        shopIdRef.current = cachedShopId;
+        await fetchAllData(cachedShopId);
+        setIsLoggedIn(true);
+        setInitialized(true);
+        return;
+      }
+
+      // キャッシュがなければDBから取得
+      console.log('DBからshopId取得:', userId);
       const { data, error } = await supabase
         .from('profiles')
         .select('shop_id')
         .eq('id', userId)
         .single();
-
-      console.log('profiles result:', data, error);
 
       if (error || !data?.shop_id) {
         console.error('profiles取得失敗:', error);
@@ -106,7 +119,8 @@ export default function Home() {
 
       const shopId = data.shop_id as string;
       shopIdRef.current = shopId;
-      localStorage.setItem('aura_shop_id', shopId);
+      localStorage.setItem(SHOP_ID_KEY, shopId);
+      localStorage.setItem(USER_ID_KEY, userId);
       await fetchAllData(shopId);
       setIsLoggedIn(true);
       setInitialized(true);
@@ -121,12 +135,11 @@ export default function Home() {
       console.log('AUTH EVENT:', event, session?.user?.id);
 
       if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session?.user) {
-        sessionRef.current = session;
         await initFromUserId(session.user.id);
       } else if (event === 'SIGNED_OUT' || (event === 'INITIAL_SESSION' && !session)) {
-        sessionRef.current = null;
+        localStorage.removeItem(SHOP_ID_KEY);
+        localStorage.removeItem(USER_ID_KEY);
         shopIdRef.current = null;
-        localStorage.removeItem('aura_shop_id');
         setStaff([]);
         setAppointments([]);
         setSales([]);
@@ -140,6 +153,9 @@ export default function Home() {
   }, []);
 
   const handleLogout = async () => {
+    localStorage.removeItem(SHOP_ID_KEY);
+    localStorage.removeItem(USER_ID_KEY);
+    shopIdRef.current = null;
     await supabase.auth.signOut();
   };
 
@@ -158,7 +174,7 @@ export default function Home() {
   };
 
   const handleMoveAppointment = async (appointmentId: string, newStaffId: string, newStartTime: string) => {
-    const shopId = getShopIdSafe();
+    const shopId = getShopId();
     if (!shopId) return;
     try {
       const targetApp = appointments.find((a: any) => a.id === appointmentId);
@@ -179,7 +195,7 @@ export default function Home() {
   };
 
   const handleSaveAppointment = async (formData: any) => {
-    const shopId = getShopIdSafe();
+    const shopId = getShopId();
     if (!shopId) return;
     try {
       let customerId = formData.customer_id;
@@ -219,7 +235,7 @@ export default function Home() {
   };
 
   const handlePaymentConfirm = async (total: number, net: number, tax: number, method: string, cart: any[], memo: string) => {
-    const shopId = getShopIdSafe();
+    const shopId = getShopId();
     if (!activeApp || !shopId) return;
     try {
       const { error: saleError } = await supabase
@@ -255,7 +271,7 @@ export default function Home() {
   };
 
   const handleRevertSale = async (sale: Sale) => {
-    const shopId = getShopIdSafe();
+    const shopId = getShopId();
     if (!shopId) return;
     if (!confirm(`${sale.customer_name}様の会計（¥${sale.total_amount.toLocaleString()}）を取り消しますか？\n\n予約がタイムラインに戻ります。`)) return;
     try {
@@ -379,7 +395,7 @@ export default function Home() {
                     onPay={handlePayClick}
                     onEdit={setEditingApp}
                     onDelete={(id: string) => {
-                      supabase.from('appointments').delete().eq('id', id).eq('shop_id', getShopIdSafe()).then(() => refreshData());
+                      supabase.from('appointments').delete().eq('id', id).eq('shop_id', getShopId()).then(() => refreshData());
                     }}
                     onMove={handleMoveAppointment}
                     onRefresh={refreshData}
