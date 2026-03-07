@@ -56,7 +56,6 @@ export default function Home() {
   const [sales, setSales] = useState<Sale[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const shopIdRef = useRef<string | null>(null);
-  const hasRunRef = useRef(false);
 
   const [editingApp, setEditingApp] = useState<any>(null);
   const [activeApp, setActiveApp] = useState<any>(null);
@@ -90,50 +89,49 @@ export default function Home() {
   };
 
   const initFromUserId = async (userId: string) => {
-    const cachedShopId = localStorage.getItem(SHOP_ID_KEY);
-    const cachedUserId = localStorage.getItem(USER_ID_KEY);
+    try {
+      const cachedShopId = localStorage.getItem(SHOP_ID_KEY);
+      const cachedUserId = localStorage.getItem(USER_ID_KEY);
 
-    if (cachedShopId && cachedUserId === userId) {
-      console.log('キャッシュから復元:', cachedShopId);
-      shopIdRef.current = cachedShopId;
-      await fetchAllData(cachedShopId);
-      setIsLoggedIn(true);
+      if (cachedShopId && cachedUserId === userId) {
+        console.log('キャッシュから復元:', cachedShopId);
+        shopIdRef.current = cachedShopId;
+        await fetchAllData(cachedShopId);
+        setIsLoggedIn(true);
+      } else {
+        console.log('DBから取得:', userId);
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('shop_id')
+          .eq('id', userId)
+          .single();
+
+        if (error || !data?.shop_id) {
+          console.error('profiles取得失敗:', error);
+          return;
+        }
+
+        const shopId = data.shop_id as string;
+        shopIdRef.current = shopId;
+        localStorage.setItem(SHOP_ID_KEY, shopId);
+        localStorage.setItem(USER_ID_KEY, userId);
+        await fetchAllData(shopId);
+        setIsLoggedIn(true);
+      }
+    } catch (e) {
+      console.error('initFromUserId Error:', e);
+    } finally {
       setInitialized(true);
-      return;
     }
-
-    console.log('DBから取得:', userId);
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('shop_id')
-      .eq('id', userId)
-      .single();
-
-    if (error || !data?.shop_id) {
-      console.error('profiles取得失敗:', error);
-      setInitialized(true);
-      return;
-    }
-
-    const shopId = data.shop_id as string;
-    shopIdRef.current = shopId;
-    localStorage.setItem(SHOP_ID_KEY, shopId);
-    localStorage.setItem(USER_ID_KEY, userId);
-    await fetchAllData(shopId);
-    setIsLoggedIn(true);
-    setInitialized(true);
   };
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('AUTH EVENT:', event, session?.user?.id);
 
-      if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session?.user) {
-        if (hasRunRef.current) return;
-        hasRunRef.current = true;
+      if (session?.user) {
         await initFromUserId(session.user.id);
-      } else if (event === 'SIGNED_OUT' || (event === 'INITIAL_SESSION' && !session)) {
-        hasRunRef.current = false;
+      } else {
         localStorage.removeItem(SHOP_ID_KEY);
         localStorage.removeItem(USER_ID_KEY);
         shopIdRef.current = null;
@@ -150,7 +148,6 @@ export default function Home() {
   }, []);
 
   const handleLogout = async () => {
-    hasRunRef.current = false;
     localStorage.removeItem(SHOP_ID_KEY);
     localStorage.removeItem(USER_ID_KEY);
     shopIdRef.current = null;
