@@ -47,6 +47,9 @@ const EmptyState = ({ title, desc, icon: Icon, action, label, secondaryAction }:
 const SHOP_ID_KEY = 'aura_shop_id';
 const USER_ID_KEY = 'aura_user_id';
 
+// モジュールレベルのフラグ（コンポーネント外）
+let globalInitializing = false;
+
 export default function Home() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [initialized, setInitialized] = useState(false);
@@ -89,8 +92,14 @@ export default function Home() {
   };
 
   const initFromUserId = async (userId: string) => {
+    // 多重実行防止
+    if (globalInitializing) {
+      console.log('初期化中のためスキップ');
+      return;
+    }
+    globalInitializing = true;
+
     try {
-      // まずlocalStorageにshopIdがあればそれを使う
       const cachedShopId = localStorage.getItem(SHOP_ID_KEY);
       const cachedUserId = localStorage.getItem(USER_ID_KEY);
 
@@ -103,7 +112,6 @@ export default function Home() {
         return;
       }
 
-      // キャッシュがなければDBから取得
       console.log('DBからshopId取得:', userId);
       const { data, error } = await supabase
         .from('profiles')
@@ -127,6 +135,8 @@ export default function Home() {
     } catch (e) {
       console.error('initFromUserId 例外:', e);
       setInitialized(true);
+    } finally {
+      globalInitializing = false;
     }
   };
 
@@ -137,6 +147,7 @@ export default function Home() {
       if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session?.user) {
         await initFromUserId(session.user.id);
       } else if (event === 'SIGNED_OUT' || (event === 'INITIAL_SESSION' && !session)) {
+        globalInitializing = false;
         localStorage.removeItem(SHOP_ID_KEY);
         localStorage.removeItem(USER_ID_KEY);
         shopIdRef.current = null;
@@ -153,6 +164,7 @@ export default function Home() {
   }, []);
 
   const handleLogout = async () => {
+    globalInitializing = false;
     localStorage.removeItem(SHOP_ID_KEY);
     localStorage.removeItem(USER_ID_KEY);
     shopIdRef.current = null;
