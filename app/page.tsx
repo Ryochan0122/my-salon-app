@@ -56,6 +56,7 @@ export default function Home() {
   const [sales, setSales] = useState<Sale[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const shopIdRef = useRef<string | null>(null);
+  const initializedUserRef = useRef<string | null>(null);
 
   const [editingApp, setEditingApp] = useState<any>(null);
   const [activeApp, setActiveApp] = useState<any>(null);
@@ -89,17 +90,24 @@ export default function Home() {
   };
 
   const initFromUserId = async (userId: string) => {
+    // 同じユーザーIDで既に初期化済みならスキップ
+    if (initializedUserRef.current === userId) {
+      console.log('⏭️ 既に初期化済みのためスキップ:', userId);
+      return;
+    }
+    initializedUserRef.current = userId;
+
     try {
       const cachedShopId = localStorage.getItem(SHOP_ID_KEY);
       const cachedUserId = localStorage.getItem(USER_ID_KEY);
 
       if (cachedShopId && cachedUserId === userId) {
-        console.log('キャッシュから復元:', cachedShopId);
+        console.log('✅ キャッシュから復元:', cachedShopId);
         shopIdRef.current = cachedShopId;
         await fetchAllData(cachedShopId);
         setIsLoggedIn(true);
       } else {
-        console.log('DBから取得:', userId);
+        console.log('🔍 DBから取得:', userId);
         const { data, error } = await supabase
           .from('profiles')
           .select('shop_id')
@@ -107,7 +115,7 @@ export default function Home() {
           .single();
 
         if (error || !data?.shop_id) {
-          console.error('profiles取得失敗:', error);
+          console.error('❌ profiles取得失敗:', error);
           return;
         }
 
@@ -121,17 +129,19 @@ export default function Home() {
     } catch (e) {
       console.error('initFromUserId Error:', e);
     } finally {
+      console.log('🏁 setInitialized(true) 呼ばれた');
       setInitialized(true);
     }
   };
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('AUTH EVENT:', event, session?.user?.id);
+      console.log('🔥 AUTH EVENT:', event, session?.user?.id);
 
       if (session?.user) {
         await initFromUserId(session.user.id);
       } else {
+        initializedUserRef.current = null;
         localStorage.removeItem(SHOP_ID_KEY);
         localStorage.removeItem(USER_ID_KEY);
         shopIdRef.current = null;
@@ -148,6 +158,7 @@ export default function Home() {
   }, []);
 
   const handleLogout = async () => {
+    initializedUserRef.current = null;
     localStorage.removeItem(SHOP_ID_KEY);
     localStorage.removeItem(USER_ID_KEY);
     shopIdRef.current = null;
