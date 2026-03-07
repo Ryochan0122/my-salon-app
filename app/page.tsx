@@ -56,7 +56,6 @@ export default function Home() {
   const [sales, setSales] = useState<Sale[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const shopIdRef = useRef<string | null>(null);
-  const initializedUserRef = useRef<string | null>(null);
 
   const [editingApp, setEditingApp] = useState<any>(null);
   const [activeApp, setActiveApp] = useState<any>(null);
@@ -89,14 +88,7 @@ export default function Home() {
     await fetchAllData(shopId);
   };
 
-   const initFromUserId = async (userId: string) => {
-    // 同じユーザーIDで既に初期化済みならスキップ
-    if (initializedUserRef.current === userId) {
-      console.log('⏭️ 既に初期化済みのためスキップ:', userId);
-      setInitialized(true);
-      return;
-    }
-    initializedUserRef.current = userId;
+  const initFromUserId = async (userId: string) => {
     try {
       const cachedShopId = localStorage.getItem(SHOP_ID_KEY);
       const cachedUserId = localStorage.getItem(USER_ID_KEY);
@@ -139,9 +131,9 @@ export default function Home() {
       console.log('🔥 AUTH EVENT:', event, session?.user?.id);
 
       if (session?.user) {
+        setInitialized(false);
         await initFromUserId(session.user.id);
       } else {
-        initializedUserRef.current = null;
         localStorage.removeItem(SHOP_ID_KEY);
         localStorage.removeItem(USER_ID_KEY);
         shopIdRef.current = null;
@@ -158,7 +150,6 @@ export default function Home() {
   }, []);
 
   const handleLogout = async () => {
-    initializedUserRef.current = null;
     localStorage.removeItem(SHOP_ID_KEY);
     localStorage.removeItem(USER_ID_KEY);
     shopIdRef.current = null;
