@@ -56,6 +56,7 @@ export default function Home() {
   const [sales, setSales] = useState<Sale[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const shopIdRef = useRef<string | null>(null);
+  const hasRunRef = useRef(false);
 
   const [editingApp, setEditingApp] = useState<any>(null);
   const [activeApp, setActiveApp] = useState<any>(null);
@@ -66,20 +67,16 @@ export default function Home() {
   const getShopId = () => shopIdRef.current || localStorage.getItem(SHOP_ID_KEY);
 
   const fetchAllData = async (shopId: string) => {
-    try {
-      const [stf, apps, sle, svc] = await Promise.all([
-        supabase.from('staff').select('*').eq('shop_id', shopId),
-        supabase.from('appointments').select('*').eq('shop_id', shopId),
-        supabase.from('sales').select('*').eq('shop_id', shopId).order('created_at', { ascending: false }),
-        supabase.from('services').select('*').eq('shop_id', shopId).order('id', { ascending: true })
-      ]);
-      setStaff(stf.data || []);
-      setAppointments(apps.data || []);
-      setSales(sle.data || []);
-      setServices(svc.data || []);
-    } catch (err) {
-      console.error('fetchAllData Error:', err);
-    }
+    const [stf, apps, sle, svc] = await Promise.all([
+      supabase.from('staff').select('*').eq('shop_id', shopId),
+      supabase.from('appointments').select('*').eq('shop_id', shopId),
+      supabase.from('sales').select('*').eq('shop_id', shopId).order('created_at', { ascending: false }),
+      supabase.from('services').select('*').eq('shop_id', shopId).order('id', { ascending: true })
+    ]);
+    setStaff(stf.data || []);
+    setAppointments(apps.data || []);
+    setSales(sle.data || []);
+    setServices(svc.data || []);
   };
 
   const refreshData = async () => {
@@ -90,50 +87,78 @@ export default function Home() {
 
   const initFromUserId = async (userId: string) => {
     try {
+      // shopId解決
       const cachedShopId = localStorage.getItem(SHOP_ID_KEY);
       const cachedUserId = localStorage.getItem(USER_ID_KEY);
 
       if (cachedShopId && cachedUserId === userId) {
-        console.log('✅ キャッシュから復元:', cachedShopId);
         shopIdRef.current = cachedShopId;
-        await fetchAllData(cachedShopId);
-        setIsLoggedIn(true);
       } else {
-        console.log('🔍 DBから取得:', userId);
         const { data, error } = await supabase
           .from('profiles')
           .select('shop_id')
           .eq('id', userId)
           .single();
-
         if (error || !data?.shop_id) {
-          console.error('❌ profiles取得失敗:', error);
+          console.error('profiles取得失敗:', error);
+          setInitialized(true);
           return;
         }
-
-        const shopId = data.shop_id as string;
-        shopIdRef.current = shopId;
-        localStorage.setItem(SHOP_ID_KEY, shopId);
+        shopIdRef.current = data.shop_id;
+        localStorage.setItem(SHOP_ID_KEY, data.shop_id);
         localStorage.setItem(USER_ID_KEY, userId);
-        await fetchAllData(shopId);
-        setIsLoggedIn(true);
       }
+
+      // 5秒タイムアウト付きfetch
+      const timeout = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('timeout')), 5000)
+      );
+
+      try {
+        await Promise.race([fetchAllData(shopIdRef.current!), timeout]);
+      } catch (e) {
+        console.warn('fetchAllData タイムアウト、リトライ中...');
+        try {
+          await fetchAllData(shopIdRef.current!);
+        } catch (e2) {
+          console.error('リトライも失敗:', e2);
+          localStorage.removeItem(SHOP_ID_KEY);
+          localStorage.removeItem(USER_ID_KEY);
+          setIsLoggedIn(false);
+          setInitialized(true);
+          return;
+        }
+      }
+
+      setIsLoggedIn(true);
+      setInitialized(true);
     } catch (e) {
       console.error('initFromUserId Error:', e);
-    } finally {
-      console.log('🏁 setInitialized(true) 呼ばれた');
       setInitialized(true);
     }
   };
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('🔥 AUTH EVENT:', event, session?.user?.id);
-
+    // リロード時はgetSession()で直接取得
+    const init = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
-        setInitialized(false);
+        hasRunRef.current = true;
         await initFromUserId(session.user.id);
       } else {
+        setInitialized(true);
+      }
+    };
+    init();
+
+    // ログイン/ログアウトのみ監視
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('AUTH EVENT:', event);
+      if (event === 'SIGNED_IN' && session?.user && !hasRunRef.current) {
+        hasRunRef.current = true;
+        await initFromUserId(session.user.id);
+      } else if (event === 'SIGNED_OUT') {
+        hasRunRef.current = false;
         localStorage.removeItem(SHOP_ID_KEY);
         localStorage.removeItem(USER_ID_KEY);
         shopIdRef.current = null;
@@ -150,6 +175,7 @@ export default function Home() {
   }, []);
 
   const handleLogout = async () => {
+    hasRunRef.current = false;
     localStorage.removeItem(SHOP_ID_KEY);
     localStorage.removeItem(USER_ID_KEY);
     shopIdRef.current = null;
