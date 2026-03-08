@@ -14,8 +14,10 @@ export const AuthView = () => {
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+
     try {
       if (isSignUp) {
+        // 新規登録：メタデータに店舗情報を乗せる
         const { error } = await supabase.auth.signUp({
           email,
           password,
@@ -29,6 +31,7 @@ export const AuthView = () => {
         if (error) throw error;
         alert('確認メールを送信しました（設定によっては即ログイン可能です）');
       } else {
+        // ログイン
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
       }
@@ -50,13 +53,13 @@ export const AuthView = () => {
             Aura <span className="text-indigo-600">OS</span>
           </h1>
           <p className="text-slate-400 font-bold text-[10px] uppercase tracking-widest mt-2">
-            {isSignUp ? 'アカウント新規登録' : 'ログイン'}
+            {isSignUp ? 'Create New Account' : 'Welcome Back'}
           </p>
         </div>
 
         <form onSubmit={handleAuth} className="space-y-4">
           <div className="space-y-2">
-            <label className="text-[10px] font-black text-slate-400 uppercase ml-4">メールアドレス</label>
+            <label className="text-[10px] font-black text-slate-400 uppercase ml-4">Email</label>
             <div className="relative">
               <Mail className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
               <input 
@@ -68,7 +71,7 @@ export const AuthView = () => {
           </div>
 
           <div className="space-y-2">
-            <label className="text-[10px] font-black text-slate-400 uppercase ml-4">パスワード</label>
+            <label className="text-[10px] font-black text-slate-400 uppercase ml-4">Password</label>
             <div className="relative">
               <Lock className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
               <input 
@@ -82,21 +85,21 @@ export const AuthView = () => {
           {isSignUp && (
             <div className="pt-4 space-y-4 animate-in slide-in-from-top duration-300">
               <div className="space-y-2">
-                <label className="text-[10px] font-black text-indigo-600 uppercase ml-4">サロン名</label>
+                <label className="text-[10px] font-black text-indigo-600 uppercase ml-4">New Salon Name</label>
                 <div className="relative">
                   <Store className="absolute left-6 top-1/2 -translate-y-1/2 text-indigo-300" size={18} />
                   <input 
                     type="text" value={shopName} onChange={(e) => setShopName(e.target.value)}
                     className="w-full bg-indigo-50/50 border-none rounded-2xl py-4 pl-14 pr-6 font-bold text-sm focus:ring-2 ring-indigo-500 outline-none transition-all"
-                    placeholder="AURA サロン 渋谷店"
+                    placeholder="AURA Salon Tokyo"
                   />
                 </div>
               </div>
-              <p className="text-center text-[9px] font-bold text-slate-300 uppercase tracking-tighter">— または —</p>
+              <p className="text-center text-[9px] font-bold text-slate-300 uppercase tracking-tighter">— OR —</p>
               <input 
                 type="text" value={inviteCode} onChange={(e) => setInviteCode(e.target.value)}
                 className="w-full bg-slate-50 border-none rounded-2xl py-4 px-6 font-bold text-xs focus:ring-2 ring-slate-200 outline-none text-center"
-                placeholder="招待コード（お持ちの方）"
+                placeholder="INVITE CODE (If you have one)"
               />
             </div>
           )}
@@ -105,7 +108,7 @@ export const AuthView = () => {
             disabled={loading}
             className="w-full py-5 bg-indigo-600 text-white rounded-2xl font-black text-xs uppercase tracking-[0.3em] shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-95 flex items-center justify-center gap-3 mt-8"
           >
-            {loading ? <Loader2 className="animate-spin" /> : (isSignUp ? <><UserPlus size={18}/> アカウント作成</> : <><LogIn size={18}/> ログイン</>)}
+            {loading ? <Loader2 className="animate-spin" /> : (isSignUp ? <><UserPlus size={18}/> Create Account</> : <><LogIn size={18}/> Sign In</>)}
           </button>
         </form>
 
@@ -113,7 +116,7 @@ export const AuthView = () => {
           onClick={() => setIsSignUp(!isSignUp)}
           className="w-full mt-8 text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-indigo-600 transition-colors"
         >
-          {isSignUp ? 'すでにアカウントをお持ちの方はこちら' : '新規登録はこちら'}
+          {isSignUp ? 'Already have an account? Log In' : 'Need a new salon? Sign Up'}
         </button>
       </div>
     </div>
